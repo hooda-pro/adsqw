@@ -197,6 +197,9 @@ input:focus { border-color: var(--accent); }
   z-index: 10;
   padding: 20px;
 }
+.modal[hidden] {
+  display: none;
+}
 .modal-box {
   background: var(--surface);
   border: 1px solid var(--border);

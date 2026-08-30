@@ -218,6 +218,24 @@ function initFirebase() {
   fbDb = firebase.database();
 }
 
+// شريط تحذير صغير بيظهر فوق الصفحة لو الرسائل الفورية معندهاش اتصال —
+// قبل كده كان الخطأ ده بيتكتب في الـ console بس ومحدش كان حاسس إن فيه مشكلة أصلاً.
+function showConnIssueBanner(msg) {
+  let el = document.getElementById('connIssueBanner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'connIssueBanner';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#c0392b;color:#fff;text-align:center;padding:8px 14px;font-size:13px;line-height:1.4;';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.hidden = false;
+}
+function hideConnIssueBanner() {
+  const el = document.getElementById('connIssueBanner');
+  if (el) el.hidden = true;
+}
+
 // بتتنادى بعد نجاح تسجيل الدخول/الحساب الجديد أو استعادة الجلسة
 async function signIntoFirebase() {
   try {
@@ -229,9 +247,11 @@ async function signIntoFirebase() {
     if (!res.ok) throw new Error(data.error || 'firebase token error');
 
     await fbAuth.signInWithCustomToken(data.firebaseToken);
+    hideConnIssueBanner();
     listenToChatList();
   } catch (err) {
     console.error('مقدرش أسجل دخول على Firebase (الرسائل الفورية):', err);
+    showConnIssueBanner('في مشكلة في الاتصال بالرسائل الفورية — جرب تسجّل خروج ودخول تاني، أو حدّث الصفحة');
   }
 }
 
@@ -252,11 +272,20 @@ function stopMessagesListener() {
 function listenToChatList() {
   stopChatListListener();
   chatListRef = fbDb.ref(`userConversations/${currentUser.id}`);
-  chatListRef.on('value', (snap) => {
-    const data = snap.val() || {};
-    const chats = Object.keys(data).map((otherId) => ({ id: otherId, ...data[otherId] }));
-    renderChatList(chats);
-  });
+  chatListRef.on(
+    'value',
+    (snap) => {
+      hideConnIssueBanner();
+      const data = snap.val() || {};
+      const chats = Object.keys(data).map((otherId) => ({ id: otherId, ...data[otherId] }));
+      renderChatList(chats);
+    },
+    (err) => {
+      // لو الاستماع اتقفل بسبب صلاحيات (مثلاً الجلسة على Firebase انتهت)، نوضح ده للمستخدم
+      console.error('فشل الاستماع لقائمة الدردشات:', err);
+      showConnIssueBanner('اتقطع الاتصال بالرسائل الفورية — جرب تحدّث الصفحة');
+    }
+  );
 }
 
 // ============================================================
@@ -336,8 +365,8 @@ newChatSearch.addEventListener('input', () => {
   clearTimeout(searchDebounce);
   const value = newChatSearch.value.trim();
 
-  if (value.length < 3) {
-    searchResults.innerHTML = '<p class="search-hint">اكتب 3 أرقام على الأقل</p>';
+  if (value.length < 8) {
+    searchResults.innerHTML = '<p class="search-hint">اكتب رقم الموبايل بالكامل عشان تقدر تدور عليه</p>';
     return;
   }
 
@@ -425,11 +454,18 @@ function listenToMessages(otherId) {
 
   messagesList.innerHTML = '<p class="messages-empty">بيحمّل الرسائل...</p>';
 
-  messagesRef.on('value', (snap) => {
-    const data = snap.val() || {};
-    const messages = Object.values(data).sort((a, b) => (a.ts || 0) - (b.ts || 0));
-    renderMessages(messages);
-  });
+  messagesRef.on(
+    'value',
+    (snap) => {
+      const data = snap.val() || {};
+      const messages = Object.values(data).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      renderMessages(messages);
+    },
+    (err) => {
+      console.error('فشل تحميل الرسائل:', err);
+      messagesList.innerHTML = '<p class="messages-empty">مقدرش أحمّل الرسائل، جرب تحدّث الصفحة</p>';
+    }
+  );
 }
 
 function renderMessages(messages) {

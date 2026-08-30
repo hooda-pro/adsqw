@@ -296,7 +296,7 @@
     if (!window.firebase || !window.FIREBASE_CONFIG) throw new Error('firebase sdk/config missing');
     if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
     const data = await api('/api/firebase-token');
-    await firebase.auth().signInWithCustomToken(data.token);
+    await firebase.auth().signInWithCustomToken(data.firebaseToken);
     db = firebase.database();
   }
 
@@ -996,4 +996,3 @@
 
   boot();
 })();
-

@@ -4,13 +4,14 @@
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || root.child('userConversations/' + auth.uid + '/' + $uid).exists())",
         ".write": "auth != null && auth.uid === $uid",
-        ".validate": "newData.hasChildren(['state', 'lastChanged']) && newData.children().length <= 2",
+        ".validate": "newData.hasChildren(['state', 'lastChanged'])",
         "state": {
           ".validate": "newData.isString() && (newData.val() === 'online' || newData.val() === 'offline')"
         },
         "lastChanged": {
           ".validate": "newData.isNumber() && newData.val() <= now + 60000"
-        }
+        },
+        "$other": { ".validate": false }
       }
     },
 
@@ -29,7 +30,7 @@
           ".indexOn": ["ts"],
           "$messageId": {
             ".write": "auth != null && !data.exists() && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",
-            ".validate": "newData.hasChildren(['senderId', 'text', 'ts']) && newData.children().length <= 4 && newData.child('senderId').val() === auth.uid",
+            ".validate": "newData.hasChildren(['senderId', 'text', 'ts']) && newData.child('senderId').val() === auth.uid",
             "senderId": {
               ".validate": "newData.isString() && newData.val().length <= 64"
             },
@@ -41,7 +42,8 @@
             },
             "cid": {
               ".validate": "newData.isString() && newData.val().length <= 64"
-            }
+            },
+            "$other": { ".validate": false }
           }
         },
 
@@ -67,7 +69,7 @@
         ".indexOn": ["lastAt"],
 
         "$otherUid": {
-          ".validate": "newData.hasChildren(['convId']) && newData.children().length <= 10",
+          ".validate": "newData.hasChildren(['convId'])",
 
           "convId": {
             ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
@@ -108,7 +110,8 @@
           "myReadAt": {
             ".write": "auth != null && auth.uid === $uid",
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
-          }
+          },
+          "$other": { ".validate": false }
         }
       }
     }

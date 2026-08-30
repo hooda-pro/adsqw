@@ -33,7 +33,7 @@ public/                 الواجهة
   sw.js                 Service Worker (كاش للملفات، ومفيش كاش للـ API)
   icons/                أيقونات PWA (بتتولّد من tools/make-icons.py)
 
-tests/                  90 اختبار — بيشتغلوا بـ node:test، من غير أي تنزيلات
+tests/                  94 اختبار — بيشتغلوا بـ node:test، من غير أي تنزيلات
 tools/make-icons.py     مولّد الأيقونات (Python خالص، من غير Pillow)
 schema.sql              هيكل قاعدة البيانات
 firebase-database-rules.json   قواعد أمان Firebase
@@ -82,7 +82,7 @@ npm test
 npm run icons
 ```
 
-`npm test` بيشغّل 90 اختبار على `node:test` — مفيش أي حزمة اختبار متنزّلة،
+`npm test` بيشغّل 94 اختبار على `node:test` — مفيش أي حزمة اختبار متنزّلة،
 ومحتاج Node 18 أو أحدث بس. `npm run icons` بيعيد توليد أيقونات PWA (محتاج
 Python، ومش محتاج Pillow — التوليد PNG خام بـ zlib).
 

@@ -132,3 +132,72 @@ test('مفيش أي مكان في القواعد فيه true مفتوح', () => 
   })(rules, '');
   assert.deepStrictEqual(open, [], 'قواعد مفتوحة للعالم: ' + open.join(', '));
 });
+
+/** كل تعبيرات القواعد مع مساراتها */
+function expressions() {
+  const out = [];
+  (function walk(node, trail) {
+    if (!node || typeof node !== 'object') return;
+    for (const [k, v] of Object.entries(node)) {
+      if (typeof v === 'string' && k.startsWith('.')) out.push({ path: trail + '/' + k, expr: v });
+      else if (v && typeof v === 'object') walk(v, trail + '/' + k);
+    }
+  })(rules, '');
+  return out;
+}
+
+// Firebase بترفض النشر كله لو فيه دالة مش موجودة، بالرسالة:
+//   "No such method/property 'children'"
+// وده حصل فعلًا: كتبنا newData.children().length وهي مش موجودة في RTDB.
+// الطريقة الصح لمنع حقول زيادة هي "$other": { ".validate": false }.
+const ALLOWED_METHODS = new Set([
+  // RuleDataSnapshot
+  'val', 'child', 'parent', 'hasChild', 'hasChildren', 'exists', 'getPriority',
+  'isNumber', 'isString', 'isBoolean',
+  // String
+  'contains', 'beginsWith', 'endsWith', 'replace', 'toLowerCase', 'toUpperCase', 'matches',
+]);
+
+test('مفيش أي دالة مش موجودة في محرّك قواعد Firebase', () => {
+  const bad = [];
+  for (const { path: p, expr } of expressions()) {
+    for (const m of expr.matchAll(/\.([A-Za-z_][\w]*)\s*\(/g)) {
+      if (!ALLOWED_METHODS.has(m[1])) bad.push(p + ' → .' + m[1] + '()');
+    }
+  }
+  assert.deepStrictEqual(bad, [],
+    'دوال مش موجودة (Firebase هترفض النشر كله): ' + bad.join(', '));
+});
+
+test('children() ممنوعة تحديدًا — دي اللي رفضت النشر قبل كده', () => {
+  const raw = fs.readFileSync(RULES_FILE, 'utf8');
+  assert.ok(!/\.children\s*\(/.test(raw),
+    "newData.children() مش موجودة في RTDB — استخدم \"$other\": { \".validate\": false }");
+});
+
+test('الحقول الزيادة ممنوعة بـ $other مش بعدّ الأبناء', () => {
+  const guards = [
+    ['presence', '$uid'],
+    ['conversations', '$convId', 'messages', '$messageId'],
+    ['userConversations', '$uid', '$otherUid'],
+  ];
+  for (const g of guards) {
+    const node = at(rules, ...g);
+    assert.ok(node['$other'], 'مفيش $other على: ' + g.join('/'));
+    assert.strictEqual(node['$other']['.validate'], false,
+      '$other لازم .validate = false عشان يرفض أي حقل مش معروف: ' + g.join('/'));
+  }
+});
+
+test('الشروط الطويلة مالهاش أقواس ناقصة', () => {
+  for (const { path: p, expr } of expressions()) {
+    let depth = 0;
+    for (const ch of expr) {
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      assert.ok(depth >= 0, 'قوس زيادة في: ' + p);
+    }
+    assert.strictEqual(depth, 0, 'أقواس مش متوازنة في: ' + p);
+  }
+});
+

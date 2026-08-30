@@ -249,10 +249,25 @@ async function signIntoFirebase() {
     await fbAuth.signInWithCustomToken(data.firebaseToken);
     hideConnIssueBanner();
     listenToChatList();
+    // لو كان فيه محادثة مفتوحة وقت ما الاتصال اتقطع، رجّع الاستماع لرسائلها كمان
+    if (activeChatId) listenToMessages(activeChatId);
   } catch (err) {
     console.error('مقدرش أسجل دخول على Firebase (الرسائل الفورية):', err);
     showConnIssueBanner('في مشكلة في الاتصال بالرسائل الفورية — جرب تسجّل خروج ودخول تاني، أو حدّث الصفحة');
   }
+}
+
+// لو أي استماع (قائمة الدردشات أو الرسائل) اتقفل بغتة، بنحاول نصلح الاتصال بصمت
+// مرة واحدة الأول (زي ما بيحصل طبيعي لو التوكن قدم شوية) قبل ما نزعج المستخدم بتحذير.
+// من غير الحماية دي، أي قطعة اتصال عابرة كانت بتوقف تحديث قائمة الدردشات للأبد
+// لحد ما المستخدم يحدّث الصفحة بنفسه.
+let reconnectAttemptedAt = 0;
+function tryReconnectFirebase(sourceLabel) {
+  const now = Date.now();
+  if (now - reconnectAttemptedAt < 4000) return; // منع محاولات متكررة في ثواني معدودة
+  reconnectAttemptedAt = now;
+  console.warn(`إعادة محاولة الاتصال بعد فشل الاستماع (${sourceLabel})`);
+  signIntoFirebase();
 }
 
 // id ثابت للمحادثة بين أي شخصين (نفس القيمة عند الاتنين مهما مين فتحها الأول)
@@ -281,9 +296,8 @@ function listenToChatList() {
       renderChatList(chats);
     },
     (err) => {
-      // لو الاستماع اتقفل بسبب صلاحيات (مثلاً الجلسة على Firebase انتهت)، نوضح ده للمستخدم
       console.error('فشل الاستماع لقائمة الدردشات:', err);
-      showConnIssueBanner('اتقطع الاتصال بالرسائل الفورية — جرب تحدّث الصفحة');
+      tryReconnectFirebase('قائمة الدردشات');
     }
   );
 }
@@ -463,7 +477,7 @@ function listenToMessages(otherId) {
     },
     (err) => {
       console.error('فشل تحميل الرسائل:', err);
-      messagesList.innerHTML = '<p class="messages-empty">مقدرش أحمّل الرسائل، جرب تحدّث الصفحة</p>';
+      tryReconnectFirebase('الرسائل');
     }
   );
 }

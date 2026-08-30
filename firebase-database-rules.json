@@ -1,24 +1,114 @@
 {
   "rules": {
+    "presence": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('userConversations/' + auth.uid + '/' + $uid).exists())",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['state', 'lastChanged']) && newData.children().length <= 2",
+        "state": {
+          ".validate": "newData.isString() && (newData.val() === 'online' || newData.val() === 'offline')"
+        },
+        "lastChanged": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+        }
+      }
+    },
+
     "conversations": {
       "$convId": {
-        ".read": "auth != null && data.child('participants').child(auth.uid).exists()",
+        ".read": "auth != null && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",
+
         "participants": {
-          ".write": "auth != null && (data.exists() ? data.child(auth.uid).exists() : newData.child(auth.uid).exists())"
+          "$uid": {
+            ".write": "auth != null && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",
+            ".validate": "newData.isBoolean() && newData.val() === true && ($convId.beginsWith($uid + '_') || $convId.endsWith('_' + $uid))"
+          }
         },
+
         "messages": {
-          ".read": "auth != null && root.child('conversations/' + $convId + '/participants/' + auth.uid).exists()",
+          ".indexOn": ["ts"],
           "$messageId": {
-            ".write": "auth != null && !data.exists() && newData.child('senderId').val() === auth.uid && root.child('conversations/' + $convId + '/participants/' + auth.uid).exists()"
+            ".write": "auth != null && !data.exists() && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",
+            ".validate": "newData.hasChildren(['senderId', 'text', 'ts']) && newData.children().length <= 4 && newData.child('senderId').val() === auth.uid",
+            "senderId": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "text": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 4096"
+            },
+            "ts": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+            },
+            "cid": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            }
+          }
+        },
+
+        "typing": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          }
+        },
+
+        "reads": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
           }
         }
       }
     },
+
     "userConversations": {
       "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".indexOn": ["lastAt"],
+
         "$otherUid": {
-          ".read": "auth != null && auth.uid === $uid",
-          ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)"
+          ".validate": "newData.hasChildren(['convId']) && newData.children().length <= 10",
+
+          "convId": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9]+_[0-9]+$/) && ($uid + '_' + $otherUid === newData.val() || $otherUid + '_' + $uid === newData.val())"
+          },
+          "otherName": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".validate": "newData.isString() && newData.val().length <= 120"
+          },
+          "otherPhone": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".validate": "newData.isString() && newData.val().length <= 24"
+          },
+          "isVerified": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".validate": "newData.isBoolean()"
+          },
+          "isOfficial": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".validate": "newData.isBoolean()"
+          },
+          "lastMessage": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".validate": "newData.isString() && newData.val().length <= 4096"
+          },
+          "lastAt": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
+          "lastSenderId": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".validate": "newData.isString() && (newData.val() === $uid || newData.val() === $otherUid)"
+          },
+          "unread": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 9999"
+          },
+          "myReadAt": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          }
         }
       }
     }

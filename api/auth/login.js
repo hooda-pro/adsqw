@@ -1,7 +1,8 @@
 // api/auth/login.js
 // POST { phone, password }
 const { sql } = require('../../lib/db');
-const { comparePassword, normalizePhone, generateToken, hashToken, TOKEN_EXPIRY_DAYS } = require('../../lib/auth');
+const { comparePassword, generateToken, hashToken, TOKEN_EXPIRY_DAYS } = require('../../lib/auth');
+const { canonicalPhone, phoneVariants } = require('../../lib/phone');
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -18,9 +19,13 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'الرقم والباسورد مطلوبين' });
     }
 
-    const phone = normalizePhone(rawPhone);
+    // بندوّر بكل الصيغ اللي ممكن الرقم يكون متخزّن بيها (نسخ قديمة من الكود)
+    const variants = phoneVariants(rawPhone);
+    if (variants.length === 0) {
+      return res.status(401).json({ error: 'الرقم أو كلمة السر غلط' });
+    }
 
-    const result = await sql`SELECT * FROM users WHERE phone = ${phone}`;
+    const result = await sql`SELECT * FROM users WHERE phone = ANY(${variants}) LIMIT 1`;
     const user = result.rows[0];
 
     if (!user) {
@@ -64,6 +69,18 @@ module.exports = async (req, res) => {
       SET failed_login_attempts = 0, locked_until = NULL, last_seen_at = now()
       WHERE id = ${user.id}
     `;
+
+    // تصحيح صيغة الرقم المخزّنة لو كانت قديمة (عشان البحث بالتساوي التام يلاقيه).
+    // لو في صف تاني حاجز الصيغة القياسية بنسيب الرقم زي ما هو — البحث بيغطي الصيغتين برضو.
+    const canonical = canonicalPhone(user.phone) || canonicalPhone(rawPhone);
+    if (canonical && canonical !== user.phone) {
+      try {
+        await sql`UPDATE users SET phone = ${canonical} WHERE id = ${user.id}`;
+        user.phone = canonical;
+      } catch (fixErr) {
+        console.warn('Could not canonicalize stored phone for user', user.id, fixErr.code);
+      }
+    }
 
     const token = generateToken(user.id);
     const tokenHash = hashToken(token);

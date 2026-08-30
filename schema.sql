@@ -57,6 +57,17 @@ CREATE TABLE IF NOT EXISTS password_reset_requests (
   resolved_by   TEXT -- اسم الأدمن اللي حل الطلب
 );
 
+-- ==========================================
+-- حد أقصى لمحاولات البحث عن رقم (حماية خصوصية)
+-- البحث بقى بالرقم الكامل بالظبط، بس ده لوحده مايمنعش حد يجرب أرقام واحد ورا التاني.
+-- الجدول ده عدّاد واحد لكل مستخدم (صف واحد ثابت، مش لوج بيكبر).
+-- ==========================================
+CREATE TABLE IF NOT EXISTS search_rate_limit (
+  user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  window_start  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  attempts      INTEGER NOT NULL DEFAULT 0
+);
+
 -- سجل أحداث الأدمن (Audit log) - مهم عشان تعرف مين عمل حظر/توثيق/مسح
 CREATE TABLE IF NOT EXISTS admin_actions_log (
   id            SERIAL PRIMARY KEY,

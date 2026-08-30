@@ -1,7 +1,8 @@
 // api/auth/me.js
 // GET with header: Authorization: Bearer <token>
+// بيستخدم lib/session.js — مفيش نسخة تانية من منطق التحقق هنا.
 const { sql } = require('../../lib/db');
-const { verifyToken, hashToken } = require('../../lib/auth');
+const { getUserFromRequest } = require('../../lib/session');
 
 module.exports = async (req, res) => {
   if (req.method !== 'GET') {
@@ -9,43 +10,13 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const authHeader = req.headers.authorization || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-
-    if (!token) {
-      return res.status(401).json({ error: 'مفيش تسجيل دخول' });
-    }
-
-    const payload = verifyToken(token);
-    if (!payload) {
-      return res.status(401).json({ error: 'الجلسة منتهية، سجل دخول تاني' });
-    }
-
-    const tokenHash = hashToken(token);
-    const session = await sql`
-      SELECT * FROM sessions
-      WHERE token_hash = ${tokenHash} AND revoked = false AND expires_at > now()
-    `;
-
-    if (session.rows.length === 0) {
-      return res.status(401).json({ error: 'الجلسة منتهية، سجل دخول تاني' });
-    }
-
-    const result = await sql`
-      SELECT id, phone, name, avatar_url, status_text, is_verified, is_official,
-             official_display_name, banned, created_at, last_seen_at
-      FROM users WHERE id = ${payload.userId}
-    `;
-
-    const user = result.rows[0];
-
+    const user = await getUserFromRequest(req);
     if (!user) {
-      return res.status(404).json({ error: 'المستخدم مش موجود' });
+      return res.status(401).json({ error: 'الجلسة منتهية، سجل دخول تاني' });
     }
 
-    if (user.banned) {
-      return res.status(403).json({ error: 'الحساب ده محظور' });
-    }
+    // آخر ظهور — مفيد للوحة الأدمن، مش بيعطّل الرد لو فشل
+    sql`UPDATE users SET last_seen_at = now() WHERE id = ${user.id}`.catch(() => {});
 
     return res.status(200).json({ user });
   } catch (err) {

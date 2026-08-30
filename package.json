@@ -2,7 +2,11 @@
   "name": "malg-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Malg — تطبيق دردشة ومكالمات (Backend API عن طريق Vercel Serverless Functions + Neon Postgres)",
+  "description": "Malg — تطبيق دردشة (Backend API عن طريق Vercel Serverless Functions + Neon Postgres)",
+  "scripts": {
+    "test": "node --test tests/",
+    "icons": "python tools/make-icons.py"
+  },
   "dependencies": {
     "@vercel/postgres": "^0.10.0",
     "bcryptjs": "^2.4.3",

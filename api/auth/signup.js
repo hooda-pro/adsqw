@@ -1,7 +1,8 @@
 // api/auth/signup.js
 // POST { phone, password, name }
 const { sql } = require('../../lib/db');
-const { hashPassword, normalizePhone, generateToken, hashToken, TOKEN_EXPIRY_DAYS } = require('../../lib/auth');
+const { hashPassword, generateToken, hashToken, TOKEN_EXPIRY_DAYS } = require('../../lib/auth');
+const { canonicalPhone, phoneVariants, phoneError } = require('../../lib/phone');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -15,18 +16,23 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: 'الرقم والباسورد والاسم مطلوبين' });
     }
 
-    const phone = normalizePhone(rawPhone);
+    // رقم قياسي واحد (canonical) — نفس المنطق اللي في المتصفح بالظبط
+    const phone = canonicalPhone(rawPhone);
 
-    if (phone.length < 8) {
-      return res.status(400).json({ error: 'رقم الهاتف غير صحيح' });
+    if (!phone) {
+      return res.status(400).json({ error: phoneError(rawPhone) || 'رقم الهاتف غير صحيح' });
+    }
+
+    if (String(name).trim().length < 2) {
+      return res.status(400).json({ error: 'الاسم لازم يكون حرفين على الأقل' });
     }
 
     if (password.length < 6) {
       return res.status(400).json({ error: 'كلمة السر لازم تكون 6 أحرف على الأقل' });
     }
 
-    // تأكد إن الرقم مش مسجل قبل كده
-    const existing = await sql`SELECT id FROM users WHERE phone = ${phone}`;
+    // تأكد إن الرقم مش مسجل قبل كده — بأي صيغة قديمة كان متخزّن بيها
+    const existing = await sql`SELECT id FROM users WHERE phone = ANY(${phoneVariants(rawPhone)})`;
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'الرقم ده مسجل بالفعل' });
     }
@@ -35,7 +41,7 @@ module.exports = async (req, res) => {
 
     const result = await sql`
       INSERT INTO users (phone, password_hash, name)
-      VALUES (${phone}, ${passwordHash}, ${name})
+      VALUES (${phone}, ${passwordHash}, ${String(name).trim()})
       RETURNING id, phone, name, avatar_url, status_text, is_verified, is_official, created_at
     `;
 

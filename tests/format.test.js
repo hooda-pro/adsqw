@@ -108,3 +108,85 @@ test('buildTimeline: فرق أكتر من 5 دقايق يبدأ مجموعة ج�
 test('buildTimeline: قائمة فاضية بترجع فاضية', () => {
   assert.deepStrictEqual(Fmt.buildTimeline([], '1', NOON), []);
 });
+
+test('sortChats: الأحدث فوق، والأصل مايتغيرش', () => {
+  const chats = [
+    { id: 'a', lastAt: NOON - DAY },
+    { id: 'b', lastAt: NOON },
+    { id: 'c' }, // من غير lastAt — دردشة لسه فاضية
+  ];
+  const sorted = Fmt.sortChats(chats);
+  assert.deepStrictEqual(sorted.map((c) => c.id), ['b', 'a', 'c']);
+  assert.strictEqual(chats[0].id, 'a', 'sortChats مالهاش تأثير جانبي');
+});
+
+test('filterChats: بحث بالاسم', () => {
+  const chats = [
+    { otherName: 'أحمد', otherPhone: '01012345678' },
+    { otherName: 'سارة', otherPhone: '01112345678' },
+  ];
+  assert.strictEqual(Fmt.filterChats(chats, 'أح').length, 1);
+  assert.strictEqual(Fmt.filterChats(chats, 'أح')[0].otherName, 'أحمد');
+  assert.strictEqual(Fmt.filterChats(chats, 'مفيش').length, 0);
+});
+
+test('filterChats: بحث بالرقم بيتجاهل المسافات والشرط', () => {
+  const chats = [{ otherName: 'أحمد', otherPhone: '010 1234 5678' }];
+  assert.strictEqual(Fmt.filterChats(chats, '0101234').length, 1);
+  assert.strictEqual(Fmt.filterChats(chats, '010-1234').length, 1);
+  assert.strictEqual(Fmt.filterChats(chats, '0999').length, 0);
+});
+
+test('filterChats: استعلام فاضي بيرجّع كل الدردشات', () => {
+  const chats = [{ otherName: 'أحمد' }, { otherName: 'سارة' }];
+  assert.strictEqual(Fmt.filterChats(chats, '').length, 2);
+  assert.strictEqual(Fmt.filterChats(chats, '   ').length, 2);
+  assert.strictEqual(Fmt.filterChats(chats, null).length, 2);
+});
+
+test('previewText: "أنت:" لما تكون آخر رسالة مني', () => {
+  assert.strictEqual(Fmt.previewText({ lastMessage: 'سلام', lastSenderId: '1' }, '1'), 'أنت: سلام');
+  assert.strictEqual(Fmt.previewText({ lastMessage: 'سلام', lastSenderId: '2' }, '1'), 'سلام');
+  assert.strictEqual(Fmt.previewText({ lastMessage: 'سلام', lastSenderId: 1 }, '1'), 'أنت: سلام');
+});
+
+test('previewText: دردشة جديدة من غير رسايل', () => {
+  assert.strictEqual(Fmt.previewText({}, '1'), 'ابدأ المحادثة');
+  assert.strictEqual(Fmt.previewText({ lastMessage: '   ' }, '1'), 'ابدأ المحادثة');
+});
+
+test('previewText: الأسطر الجديدة بتبقى مسافة، والنص الطويل بيتقص', () => {
+  assert.strictEqual(Fmt.previewText({ lastMessage: 'سطر\nتاني' }, '1'), 'سطر تاني');
+  const long = 'ا'.repeat(200);
+  const out = Fmt.previewText({ lastMessage: long }, '1');
+  assert.strictEqual(out.length, 48);
+  assert.ok(out.endsWith('…'));
+  assert.ok(!out.includes('\n'));
+});
+
+test('messageStatus: pending / sent / read', () => {
+  assert.strictEqual(Fmt.messageStatus({ text: 'أ' }, 0), 'pending');
+  assert.strictEqual(Fmt.messageStatus(null, 0), 'pending');
+  assert.strictEqual(Fmt.messageStatus({ ts: NOON }, 0), 'sent');
+  assert.strictEqual(Fmt.messageStatus({ ts: NOON }, NOON - MIN), 'sent');
+  assert.strictEqual(Fmt.messageStatus({ ts: NOON }, NOON), 'read');
+  assert.strictEqual(Fmt.messageStatus({ ts: NOON }, NOON + MIN), 'read');
+});
+
+test('unreadCount: رسايلي أنا مش بتتحسب', () => {
+  assert.strictEqual(Fmt.unreadCount({ lastAt: NOON, lastSenderId: '1', unread: 5 }, '1'), 0);
+  assert.strictEqual(Fmt.unreadCount({ lastAt: NOON, lastSenderId: '2', unread: 5 }, '1'), 5);
+});
+
+test('unreadCount: بعد ما أقرأ بيرجع صفر', () => {
+  const chat = { lastAt: NOON, lastSenderId: '2', unread: 3 };
+  assert.strictEqual(Fmt.unreadCount({ ...chat, myReadAt: NOON }, '1'), 0);
+  assert.strictEqual(Fmt.unreadCount({ ...chat, myReadAt: NOON - MIN }, '1'), 3);
+});
+
+test('unreadCount: حالات ناقصة', () => {
+  assert.strictEqual(Fmt.unreadCount(null, '1'), 0);
+  assert.strictEqual(Fmt.unreadCount({}, '1'), 0);
+  // فيه رسالة جديدة بس العدّاد لسه ماوصلش — نعرض 1 على الأقل
+  assert.strictEqual(Fmt.unreadCount({ lastAt: NOON, lastSenderId: '2' }, '1'), 1);
+});

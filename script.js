@@ -38,6 +38,8 @@ const forgotPhone = document.getElementById('forgotPhone');
 
 let currentUser = null;
 let activeChatId = null; // id بتاع الشخص التاني في الدردشة المفتوحة دلوقتي
+let activeChat = null; // نفس بيانات الشخص التاني (اسم/رقم) عشان نستخدمها وقت البعت
+let currentChatsCache = []; // آخر نسخة من قائمة الدردشات جايه من Firebase (عشان الفلترة بالبحث)
 
 // ============================================================
 // تبديل التابات (دخول / حساب جديد)
@@ -153,11 +155,14 @@ function enterApp(user) {
     document.getElementById('meName').textContent = user.name;
     document.getElementById('mePhone').textContent = user.phone;
     document.getElementById('meAvatar').textContent = (user.name || '?').charAt(0).toUpperCase();
-    renderChatList();
+    signIntoFirebase();
   }, 320);
 }
 
 logoutBtn.addEventListener('click', () => {
+  stopChatListListener();
+  stopMessagesListener();
+  if (fbAuth) fbAuth.signOut().catch(() => {});
   clearSession();
   location.reload();
 });
@@ -178,7 +183,7 @@ logoutBtn.addEventListener('click', () => {
       document.getElementById('meName').textContent = data.user.name;
       document.getElementById('mePhone').textContent = data.user.phone;
       document.getElementById('meAvatar').textContent = (data.user.name || '?').charAt(0).toUpperCase();
-      renderChatList();
+      signIntoFirebase();
     } else {
       clearSession();
     }
@@ -193,32 +198,76 @@ logoutBtn.addEventListener('click', () => {
 searchToggleBtn.addEventListener('click', () => {
   searchBar.hidden = !searchBar.hidden;
   if (!searchBar.hidden) chatSearchInput.focus();
-  else chatSearchInput.value = '', renderChatList();
+  else chatSearchInput.value = '', renderChatList(currentChatsCache);
 });
-chatSearchInput.addEventListener('input', () => renderChatList(chatSearchInput.value.trim()));
+chatSearchInput.addEventListener('input', () => renderChatList(currentChatsCache, chatSearchInput.value.trim()));
 
 // ============================================================
-// تخزين الدردشات محلياً على جهاز المستخدم (حسب حسابه)
+// Firebase — تسجيل الدخول والرسائل الفورية (Realtime Database)
 // ============================================================
-function chatsStorageKey() {
-  return `malg_chats_${currentUser.id}`;
+let fbApp = null;
+let fbAuth = null;
+let fbDb = null;
+let chatListRef = null; // مرجع الاستماع لقائمة الدردشات
+let messagesRef = null; // مرجع الاستماع لرسائل الشات المفتوح دلوقتي
+
+function initFirebase() {
+  if (fbApp) return;
+  fbApp = firebase.initializeApp(window.FIREBASE_CONFIG);
+  fbAuth = firebase.auth();
+  fbDb = firebase.database();
 }
-function loadChats() {
+
+// بتتنادى بعد نجاح تسجيل الدخول/الحساب الجديد أو استعادة الجلسة
+async function signIntoFirebase() {
   try {
-    return JSON.parse(localStorage.getItem(chatsStorageKey())) || [];
+    initFirebase();
+    const res = await fetch('/api/firebase-token', {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'firebase token error');
+
+    await fbAuth.signInWithCustomToken(data.firebaseToken);
+    listenToChatList();
   } catch (err) {
-    return [];
+    console.error('مقدرش أسجل دخول على Firebase (الرسائل الفورية):', err);
   }
 }
-function saveChats(chats) {
-  localStorage.setItem(chatsStorageKey(), JSON.stringify(chats));
+
+// id ثابت للمحادثة بين أي شخصين (نفس القيمة عند الاتنين مهما مين فتحها الأول)
+function conversationId(a, b) {
+  const ids = [String(a), String(b)].sort();
+  return `${ids[0]}_${ids[1]}`;
 }
 
-function renderChatList(filter = '') {
-  const chats = loadChats().sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
+function stopChatListListener() {
+  if (chatListRef) { chatListRef.off(); chatListRef = null; }
+}
+function stopMessagesListener() {
+  if (messagesRef) { messagesRef.off(); messagesRef = null; }
+}
+
+// استماع مباشر لقائمة دردشات المستخدم (بتتحدث فورياً لو حد بعتله رسالة جديدة حتى لو أول مرة)
+function listenToChatList() {
+  stopChatListListener();
+  chatListRef = fbDb.ref(`userConversations/${currentUser.id}`);
+  chatListRef.on('value', (snap) => {
+    const data = snap.val() || {};
+    const chats = Object.keys(data).map((otherId) => ({ id: otherId, ...data[otherId] }));
+    renderChatList(chats);
+  });
+}
+
+// ============================================================
+// تخزين محلي بسيط لآخر بيانات معروضة (عشان الفلترة أثناء الكتابة في البحث)
+// ============================================================
+function renderChatList(chats, filter = '') {
+  currentChatsCache = chats;
+  const sorted = [...chats].sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
   const filtered = filter
-    ? chats.filter((c) => c.name.includes(filter) || c.phone.includes(filter))
-    : chats;
+    ? sorted.filter((c) => (c.otherName || '').includes(filter) || (c.otherPhone || '').includes(filter))
+    : sorted;
 
   chatList.innerHTML = '';
   emptyChats.hidden = chats.length > 0;
@@ -228,25 +277,30 @@ function renderChatList(filter = '') {
     item.className = 'chat-item';
     item.style.animationDelay = `${index * 40}ms`;
 
-    const lastMsg = chat.messages[chat.messages.length - 1];
-    const preview = lastMsg ? lastMsg.text : 'ابدأ المحادثة';
-    const time = lastMsg ? formatTime(lastMsg.ts) : '';
+    const preview = chat.lastMessage || 'ابدأ المحادثة';
+    const time = chat.lastAt ? formatTime(chat.lastAt) : '';
 
     item.innerHTML = `
-      <div class="avatar">${(chat.name || '?').charAt(0).toUpperCase()}</div>
+      <div class="avatar">${(chat.otherName || '?').charAt(0).toUpperCase()}</div>
       <div class="chat-item-info">
         <div class="chat-item-top">
           <span class="chat-item-name">
-            ${escapeHtml(chat.name)}
-            ${chat.is_verified ? verifiedBadgeSvg() : ''}
-            ${chat.is_official ? '<span class="official-tag">رسمي</span>' : ''}
+            ${escapeHtml(chat.otherName)}
+            ${chat.isVerified ? verifiedBadgeSvg() : ''}
+            ${chat.isOfficial ? '<span class="official-tag">رسمي</span>' : ''}
           </span>
           <span class="chat-item-time">${time}</span>
         </div>
         <div class="chat-item-preview">${escapeHtml(preview)}</div>
       </div>
     `;
-    item.addEventListener('click', () => openChat(chat));
+    item.addEventListener('click', () => openChat({
+      id: chat.id,
+      name: chat.otherName,
+      phone: chat.otherPhone,
+      is_verified: chat.isVerified,
+      is_official: chat.isOfficial,
+    }));
     chatList.appendChild(item);
   });
 }
@@ -331,7 +385,6 @@ async function searchUsers(phone) {
           phone: u.phone,
           is_verified: u.is_verified,
           is_official: u.is_official,
-          messages: getExistingMessages(u.id),
         });
       });
       searchResults.appendChild(item);
@@ -341,44 +394,45 @@ async function searchUsers(phone) {
   }
 }
 
-function getExistingMessages(userId) {
-  const existing = loadChats().find((c) => c.id === userId);
-  return existing ? existing.messages : [];
-}
-
 // ============================================================
 // شاشة الدردشة الفردية
 // ============================================================
 function openChat(chat) {
   activeChatId = chat.id;
-
-  // لو أول مرة يتكلم مع الشخص ده، نضيفه لقائمة الدردشات
-  const chats = loadChats();
-  if (!chats.find((c) => c.id === chat.id)) {
-    chats.push({ ...chat, lastAt: Date.now(), messages: chat.messages || [] });
-    saveChats(chats);
-  }
+  activeChat = chat;
 
   chatName.textContent = chat.name;
   chatAvatar.textContent = (chat.name || '?').charAt(0).toUpperCase();
 
-  renderMessages(chat.id);
+  listenToMessages(chat.id);
   chatScreen.hidden = false;
   composerInput.value = '';
   setTimeout(() => composerInput.focus(), 200);
 }
 
 backBtn.addEventListener('click', () => {
+  stopMessagesListener();
   chatScreen.hidden = true;
   activeChatId = null;
-  renderChatList();
+  activeChat = null;
 });
 
-function renderMessages(chatId) {
-  const chats = loadChats();
-  const chat = chats.find((c) => c.id === chatId);
-  const messages = chat ? chat.messages : [];
+// استماع مباشر لرسائل المحادثة المفتوحة (أي رسالة جديدة تظهر فوراً من غير تحديث الصفحة)
+function listenToMessages(otherId) {
+  stopMessagesListener();
+  const convId = conversationId(currentUser.id, otherId);
+  messagesRef = fbDb.ref(`conversations/${convId}/messages`);
 
+  messagesList.innerHTML = '<p class="messages-empty">بيحمّل الرسائل...</p>';
+
+  messagesRef.on('value', (snap) => {
+    const data = snap.val() || {};
+    const messages = Object.values(data).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    renderMessages(messages);
+  });
+}
+
+function renderMessages(messages) {
   messagesList.innerHTML = '';
   if (messages.length === 0) {
     messagesList.innerHTML = '<p class="messages-empty">ابعت أول رسالة وابدأ الدردشة</p>';
@@ -387,7 +441,8 @@ function renderMessages(chatId) {
 
   messages.forEach((m, index) => {
     const bubble = document.createElement('div');
-    bubble.className = `bubble ${m.from === 'me' ? 'me' : 'them'}`;
+    const mine = String(m.senderId) === String(currentUser.id);
+    bubble.className = `bubble ${mine ? 'me' : 'them'}`;
     bubble.style.animationDelay = `${Math.min(index, 8) * 20}ms`;
     bubble.textContent = m.text;
     messagesList.appendChild(bubble);
@@ -395,22 +450,62 @@ function renderMessages(chatId) {
   messagesList.scrollTop = messagesList.scrollHeight;
 }
 
-composerForm.addEventListener('submit', (e) => {
+composerForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const text = composerInput.value.trim();
-  if (!text || !activeChatId) return;
-
-  const chats = loadChats();
-  const chat = chats.find((c) => c.id === activeChatId);
-  if (!chat) return;
-
-  chat.messages.push({ text, from: 'me', ts: Date.now() });
-  chat.lastAt = Date.now();
-  saveChats(chats);
+  if (!text || !activeChat) return;
 
   composerInput.value = '';
-  renderMessages(activeChatId);
+  try {
+    await sendMessage(activeChat, text);
+  } catch (err) {
+    console.error('فشل إرسال الرسالة:', err);
+    alert('حصل خطأ وإحنا بنبعت الرسالة، جرب تاني');
+    composerInput.value = text;
+  }
 });
+
+// بيبعت الرسالة فعلياً على Firebase Realtime Database، وبيحدّث قائمة الدردشات عند الطرفين
+async function sendMessage(chat, text) {
+  const myId = String(currentUser.id);
+  const otherId = String(chat.id);
+  const convId = conversationId(myId, otherId);
+  const convRef = fbDb.ref(`conversations/${convId}`);
+  const now = firebase.database.ServerValue.TIMESTAMP;
+
+  // تسجيل الاتنين كأعضاء في المحادثة (مطلوب عشان قواعد الأمان تسمح بالقراءة/الكتابة)
+  await convRef.child('participants').set({ [myId]: true, [otherId]: true });
+
+  // إضافة الرسالة نفسها
+  await convRef.child('messages').push({
+    senderId: myId,
+    text,
+    ts: now,
+  });
+
+  // تحديث "آخر رسالة" في قائمة الدردشات عندي وعند الطرف التاني في نفس الوقت
+  await fbDb.ref(`userConversations/${myId}/${otherId}`).update({
+    convId,
+    otherName: chat.name,
+    otherPhone: chat.phone,
+    isVerified: !!chat.is_verified,
+    isOfficial: !!chat.is_official,
+    lastMessage: text,
+    lastAt: now,
+    lastSenderId: myId,
+  });
+
+  await fbDb.ref(`userConversations/${otherId}/${myId}`).update({
+    convId,
+    otherName: currentUser.name,
+    otherPhone: currentUser.phone,
+    isVerified: false,
+    isOfficial: false,
+    lastMessage: text,
+    lastAt: now,
+    lastSenderId: myId,
+  });
+}
 
 // ============================================================
 // Service Worker (PWA)

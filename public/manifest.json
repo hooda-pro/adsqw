@@ -4,8 +4,8 @@
   "description": "Malg — دردشة ومكالمات فيديو",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b1210",
-  "theme_color": "#0b1210",
+  "background_color": "#17130f",
+  "theme_color": "#17130f",
   "orientation": "portrait",
   "icons": [
     {

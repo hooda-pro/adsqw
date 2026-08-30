@@ -225,7 +225,7 @@ function showConnIssueBanner(msg) {
   if (!el) {
     el = document.createElement('div');
     el.id = 'connIssueBanner';
-    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#c0392b;color:#fff;text-align:center;padding:8px 14px;font-size:13px;line-height:1.4;';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#c1552e;color:#f4e9d8;text-align:center;padding:8px 14px;font-size:13px;line-height:1.4;';
     document.body.appendChild(el);
   }
   el.textContent = msg;

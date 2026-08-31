@@ -1,44 +1,106 @@
 /* ==========================================================
    ملج — Malg
-   تصميم جديد بالكامل: هوية بصرية مختلفة (بنفسجي/تركواز متدرّج)،
-   شاشة مخصوصة للتلفون (لوح واحد بيتبدّل) وشاشة مخصوصة للكمبيوتر
-   (بطاقة عائمة بلوحين جنب بعض)، مع حركات وانتقالات في كل مكان.
+   تصميم فاخم من الصفر: نظام تصميم كامل (Design Tokens) لمقاسات
+   الشاشة، الفراغات، الألوان، والحركة — مبني على نفس القواعد اللي
+   بتستخدمها أنظمة زي Material Design 3 وCarbon: مقياس فراغات
+   8pt/4pt، تايبوجرافي مرنة بـ clamp()، ومنحنيات حركة موحّدة
+   (easing tokens) بدل ما كل حركة تخترع رقمها لوحدها.
+
+   أهم حاجة اتصلحت هنا: زرار "دردشة جديدة" العايم (FAB) كان
+   z-index بتاعه أعلى من شاشة الشات، فكان بيفضل طافي فوق زرار
+   الإرسال وصندوق الكتابة حتى وانت داخل شات مفتوح — ده اللي كان
+   شكله "حاجات داخلة في بعضها". اتصلح تحت في قسم .fab.
    ========================================================== */
 
+/* ---------- 1) Design tokens ---------- */
 :root {
-  --bg: #06070c;
-  --surface: #12141d;
-  --surface-2: #181b26;
-  --surface-3: #1f2330;
+  /* الألوان — أسود عاجي فاخم + دهبي شمبانيا + زمردي، بدل البنفسجي العادي */
+  --bg: #07080c;
+  --bg-2: #0b0d13;
+  --surface: #12141b;
+  --surface-2: #181b24;
+  --surface-3: #20232e;
+  --surface-glass: rgba(24, 27, 36, .6);
 
-  --border: #242838;
-  --border-2: #313854;
+  --border: #262a38;
+  --border-2: #343a4c;
 
-  --text: #f5f6fb;
-  --text-dim: #9aa3b8;
-  --text-faint: #5b6478;
+  --text: #f7f4ec;
+  --text-dim: #a7acbc;
+  --text-faint: #676d80;
 
-  --accent: #7c5cff;
-  --accent-2: #22e5c8;
-  --accent-3: #ff5e93;
+  /* اللون الأساسي: دهبي شمبانيا فاخم */
+  --gold: #d9b466;
+  --gold-2: #f3dfa0;
+  --gold-deep: #a9793a;
+  /* لون ثانوي: زمردي غامق للحالات (متصل، تم القراءة...) */
+  --emerald: #2bd9a8;
+  --emerald-deep: #12503f;
+  /* لون ثالث: بنفسجي ياقوتي للتفاصيل والتدرجات */
+  --violet: #8b7bff;
+  --rose: #ff6f8f;
 
   --danger: #ff5470;
   --warn: #ffb648;
 
-  --r: 14px;
-  --r-sm: 8px;
-  --r-lg: 24px;
+  /* التدرج الأساسي (بديل التدرج البنفسجي/التركواز القديم) */
+  --grad-gold: linear-gradient(135deg, var(--gold) 0%, var(--gold-2) 45%, var(--gold) 100%);
+  --grad-jewel: linear-gradient(135deg, var(--violet), var(--emerald));
+  --grad-mine: linear-gradient(135deg, #6d5bff 0%, #4a3fd6 100%);
 
-  --side-w: 380px;
-  --head-h: 64px;
+  /* مقياس الفراغات — 4px / 8px baseline */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 48px;
+  --sp-10: 64px;
+
+  /* الحواف */
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --r-xl: 32px;
+  --r-full: 999px;
+
+  /* تايبوجرافي مرنة — بتتمدد لوحدها بين الموبايل والشاشة الكبيرة */
+  --fs-xs: clamp(11px, .5vw + 10px, 12.5px);
+  --fs-sm: clamp(12.5px, .55vw + 11px, 14px);
+  --fs-base: clamp(14.5px, .6vw + 13px, 15.5px);
+  --fs-md: clamp(15.5px, .7vw + 14px, 17px);
+  --fs-lg: clamp(18px, 1vw + 15px, 22px);
+  --fs-xl: clamp(22px, 1.6vw + 17px, 28px);
+  --fs-2xl: clamp(26px, 2.4vw + 18px, 36px);
+
+  --side-w: clamp(320px, 26vw, 392px);
+  --head-h: 66px;
 
   --ff: "Tajawal", "Segoe UI", "Noto Kufi Arabic", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 
-  --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, .65);
-  --shadow-sm: 0 10px 24px -12px rgba(0, 0, 0, .5);
+  --shadow-sm: 0 8px 20px -10px rgba(0, 0, 0, .55);
+  --shadow-md: 0 18px 38px -16px rgba(0, 0, 0, .6);
+  --shadow-lg: 0 30px 70px -24px rgba(0, 0, 0, .7);
+  --shadow-gold: 0 14px 32px -12px rgba(217, 180, 102, .45);
 
-  --ease: 240ms cubic-bezier(.22, .61, .36, 1);
-  --ease-spring: 420ms cubic-bezier(.34, 1.56, .64, 1);
+  /* رموز الحركة — مدد ومنحنيات موحّدة لكل التطبيق */
+  --dur-instant: 90ms;
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 380ms;
+  --dur-slower: 560ms;
+
+  --ease-standard: cubic-bezier(.4, 0, .2, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+  --ease-out-expo: cubic-bezier(.19, 1, .22, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+
+  --ease: var(--dur-base) var(--ease-standard);
+  --ease-spring-t: var(--dur-slow) var(--ease-spring);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -50,7 +112,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--ff);
-  font-size: 15px;
+  font-size: var(--fs-base);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -63,162 +125,175 @@ input[type="search"] { appearance: none; -webkit-appearance: none; }
 
 svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-/* ---------- خلفية زخرفية (أورورا) ---------- */
-.bg-aurora { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.bg-blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .5; animation: drift 26s ease-in-out infinite; will-change: transform; }
-.bg-blob-a { width: 520px; height: 520px; background: var(--accent); top: -140px; inset-inline-start: -110px; }
-.bg-blob-b { width: 460px; height: 460px; background: var(--accent-2); bottom: -150px; inset-inline-end: -90px; animation-duration: 32s; animation-delay: -8s; }
-.bg-blob-c { width: 380px; height: 380px; background: var(--accent-3); top: 38%; inset-inline-start: 40%; animation-duration: 36s; animation-delay: -16s; opacity: .32; }
+/* ---------- 2) خلفية زخرفية (أورورا فاخمة) ---------- */
+.bg-aurora { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: var(--bg); }
+.bg-blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: .38; animation: drift 30s var(--ease-standard) infinite; will-change: transform; }
+.bg-blob-a { width: 560px; height: 560px; background: var(--gold-deep); top: -160px; inset-inline-start: -120px; }
+.bg-blob-b { width: 480px; height: 480px; background: var(--emerald-deep); bottom: -160px; inset-inline-end: -100px; animation-duration: 36s; animation-delay: -8s; opacity: .3; }
+.bg-blob-c { width: 420px; height: 420px; background: var(--violet); top: 36%; inset-inline-start: 42%; animation-duration: 40s; animation-delay: -18s; opacity: .18; }
 @keyframes drift {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(40px, -30px) scale(1.08); }
-  66% { transform: translate(-30px, 26px) scale(.95); }
+  33% { transform: translate(46px, -34px) scale(1.1); }
+  66% { transform: translate(-34px, 28px) scale(.94); }
 }
 .bg-grain {
   position: absolute; inset: 0;
-  background: radial-gradient(120% 120% at 50% 0%, transparent 45%, rgba(0, 0, 0, .55) 100%);
+  background:
+    radial-gradient(140% 120% at 50% -10%, transparent 40%, rgba(0, 0, 0, .6) 100%),
+    radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, .03) 50%, transparent 51%);
+  background-size: auto, 3px 3px;
 }
 
-/* ---------- تبديل الشاشات ---------- */
+/* ---------- 3) تبديل الشاشات ---------- */
 #bootView, #authView, #appView { display: none; position: relative; z-index: 1; }
 body[data-view="loading"] #bootView { display: flex; }
 body[data-view="auth"] #authView { display: grid; }
-body[data-view="app"] #appView { display: block; }
+body[data-view="app"] #appView { display: block; animation: viewIn var(--dur-slow) var(--ease-out) both; }
+@keyframes viewIn { from { opacity: 0; } to { opacity: 1; } }
 .is-hidden { display: none !important; }
 
-/* ---------- شاشة التحميل ---------- */
-.boot {
-  height: 100dvh;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-}
-.boot-logo { position: relative; width: 120px; height: 120px; display: grid; place-items: center; margin-bottom: 4px; }
+/* ---------- 4) شاشة التحميل ---------- */
+.boot { height: 100dvh; flex-direction: column; align-items: center; justify-content: center; gap: 0; }
+.boot-logo { position: relative; width: 118px; height: 118px; display: grid; place-items: center; margin-bottom: 6px; }
 .boot-ring {
   position: absolute; inset: 0; border-radius: 50%;
   border: 2px solid transparent;
-  border-top-color: var(--accent);
-  border-inline-end-color: var(--accent-2);
-  animation: spin 1.6s linear infinite;
+  border-top-color: var(--gold);
+  border-inline-end-color: var(--emerald);
+  animation: spin 1.7s linear infinite;
 }
-.boot-ring-2 { inset: 16px; border-top-color: var(--accent-2); border-inline-end-color: transparent; border-inline-start-color: var(--accent-3); opacity: .75; animation: spin 2.4s linear infinite reverse; }
+.boot-ring-2 { inset: 17px; border-top-color: var(--emerald); border-inline-end-color: transparent; border-inline-start-color: var(--violet); opacity: .8; animation: spin 2.5s linear infinite reverse; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .boot-mark {
-  font-size: 30px; font-weight: 900; letter-spacing: -.5px;
-  background: linear-gradient(120deg, var(--accent), var(--accent-2), var(--accent));
-  background-size: 220% 220%;
+  font-size: var(--fs-xl); font-weight: 900; letter-spacing: -.5px;
+  background: linear-gradient(120deg, var(--gold), var(--gold-2), var(--emerald), var(--gold));
+  background-size: 260% 260%;
   -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: shimmer 3.2s ease-in-out infinite;
+  animation: shimmer 3.4s ease-in-out infinite;
 }
 @keyframes shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
-.boot-bar { margin-top: 30px; width: 160px; height: 4px; background: var(--surface-3); border-radius: 99px; overflow: hidden; }
+.boot-bar { margin-top: var(--sp-7); width: 168px; height: 4px; background: var(--surface-3); border-radius: var(--r-full); overflow: hidden; }
 .boot-bar span {
-  display: block; height: 100%; width: 40%; border-radius: 99px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  animation: slide 1.2s ease-in-out infinite;
+  display: block; height: 100%; width: 40%; border-radius: var(--r-full);
+  background: var(--grad-gold);
+  animation: slide 1.3s ease-in-out infinite;
 }
 @keyframes slide { 0% { transform: translateX(-130%); } 100% { transform: translateX(360%); } }
 
-/* ---------- الأزرار والحقول ---------- */
+/* ---------- 5) الأزرار والحقول ---------- */
 .btn {
-  display: block; width: 100%; padding: 14px 16px;
-  border: 1px solid transparent; border-radius: var(--r);
+  display: block; width: 100%; padding: 14px var(--sp-4);
+  border: 1px solid transparent; border-radius: var(--r-md);
   font: inherit; font-weight: 800; cursor: pointer;
   text-align: center; text-decoration: none;
-  transition: transform .2s, box-shadow .2s, opacity .2s, background-position .5s;
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-base) var(--ease-standard),
+              opacity var(--dur-fast) var(--ease-standard), background-position .6s var(--ease-standard), filter var(--dur-fast);
 }
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  background-size: 170% 170%; background-position: 0% 50%;
-  color: #fff;
-  box-shadow: 0 14px 30px -12px rgba(124, 92, 255, .55);
+  background: var(--grad-gold);
+  background-size: 220% 220%; background-position: 0% 50%;
+  color: #241704;
+  box-shadow: var(--shadow-gold);
+  position: relative; overflow: hidden;
 }
-.btn-primary:hover:not(:disabled) { background-position: 100% 50%; transform: translateY(-1px); box-shadow: 0 18px 36px -12px rgba(124, 92, 255, .7); }
-.btn-primary:active:not(:disabled) { transform: translateY(0) scale(.98); }
+.btn-primary::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .55) 48%, transparent 66%);
+  background-size: 220% 100%; background-position: 130% 0;
+  opacity: 0; transition: opacity var(--dur-fast);
+}
+.btn-primary:hover:not(:disabled) { background-position: 100% 50%; transform: translateY(-1px); box-shadow: 0 20px 42px -14px rgba(217, 180, 102, .6); }
+.btn-primary:hover:not(:disabled)::after { opacity: 1; animation: sheen 1.1s var(--ease-standard); }
+@keyframes sheen { from { background-position: 130% 0; } to { background-position: -30% 0; } }
+.btn-primary:active:not(:disabled) { transform: translateY(0) scale(.98); filter: brightness(.96); }
 .btn:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
 
 .btn-link {
-  display: block; width: 100%; margin-top: 6px; padding: 8px;
+  display: block; width: 100%; margin-top: var(--sp-2); padding: var(--sp-2);
   background: none; border: 0; color: var(--text-dim);
-  font: inherit; font-size: 13px; cursor: pointer;
+  font: inherit; font-size: var(--fs-sm); cursor: pointer;
   text-decoration: underline; text-underline-offset: 3px;
-  transition: color .2s;
+  transition: color var(--dur-fast);
 }
-.btn-link:hover { color: var(--accent-2); }
+.btn-link:hover { color: var(--gold-2); }
 
 .icon-btn {
   display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px;
   background: none; border: 1px solid transparent; border-radius: 12px;
   color: var(--text-dim); cursor: pointer;
-  transition: background .2s, color .2s, transform .15s;
+  transition: background var(--dur-fast), color var(--dur-fast), transform var(--dur-fast) var(--ease-spring);
 }
 .icon-btn:hover { background: var(--surface-3); color: var(--text); }
-.icon-btn:active { transform: scale(.92); }
+.icon-btn:active { transform: scale(.9); }
 
 .form { margin: 0; }
 .form.is-hidden { display: none; }
-.field { display: block; margin-bottom: 16px; }
-.field > span { display: block; margin-bottom: 7px; font-size: 12.5px; font-weight: 700; color: var(--text-dim); letter-spacing: .2px; }
+.field { display: block; margin-bottom: var(--sp-4); }
+.field > span { display: block; margin-bottom: 7px; font-size: var(--fs-xs); font-weight: 700; color: var(--text-dim); letter-spacing: .2px; }
 .field input {
-  width: 100%; padding: 13px 16px;
-  background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--r);
-  color: var(--text); font: inherit; font-size: 15px;
-  transition: border-color .2s, box-shadow .2s, background .2s;
+  width: 100%; padding: 13px var(--sp-4);
+  background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--r-md);
+  color: var(--text); font: inherit; font-size: var(--fs-base);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base), background var(--dur-fast);
 }
 .field input::placeholder { color: var(--text-faint); }
-.field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(124, 92, 255, .18); background: var(--surface); }
-.field-note { margin: -6px 0 16px; font-size: 12.5px; color: var(--text-faint); line-height: 1.7; }
-.form-error { min-height: 18px; margin: 0 0 12px; font-size: 13px; color: var(--danger); font-weight: 700; }
+.field input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 4px rgba(217, 180, 102, .16); background: var(--surface); }
+.field-note { margin: -6px 0 var(--sp-4); font-size: var(--fs-xs); color: var(--text-faint); line-height: 1.7; }
+.form-error { min-height: 18px; margin: 0 0 var(--sp-3); font-size: var(--fs-sm); color: var(--danger); font-weight: 700; }
 
-/* ---------- شاشة الدخول ---------- */
-.auth { height: 100dvh; place-items: center; padding: 20px; overflow-y: auto; }
+/* ---------- 6) شاشة الدخول ---------- */
+.auth { height: 100dvh; place-items: center; padding: var(--sp-5); overflow-y: auto; }
 .auth-card {
   position: relative; overflow: hidden;
-  width: 100%; max-width: 408px; padding: 36px 28px 28px;
+  width: 100%; max-width: 420px; padding: clamp(28px, 4vw, 40px) clamp(22px, 3.4vw, 34px) 28px;
   background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
-  border: 1px solid var(--border); border-radius: var(--r-lg);
+  border: 1px solid var(--border); border-radius: var(--r-xl);
   box-shadow: var(--shadow-lg);
-  animation: cardIn .6s var(--ease-spring) both;
+  animation: cardIn var(--dur-slower) var(--ease-spring) both;
 }
 .auth-card::before {
   content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+  background: linear-gradient(90deg, var(--gold), var(--emerald), var(--violet), var(--gold));
+  background-size: 260% 100%;
+  animation: shimmer 6s ease-in-out infinite;
 }
-@keyframes cardIn { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes cardIn { from { opacity: 0; transform: translateY(22px) scale(.96); } to { opacity: 1; transform: none; } }
 
-.auth-head { text-align: center; margin-bottom: 24px; }
+.auth-head { text-align: center; margin-bottom: var(--sp-6); }
 .auth-badge {
-  width: 52px; height: 52px; margin: 0 auto 14px;
-  display: grid; place-items: center; border-radius: 16px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #fff; box-shadow: 0 10px 24px -8px rgba(124, 92, 255, .55);
+  width: 54px; height: 54px; margin: 0 auto 14px;
+  display: grid; place-items: center; border-radius: var(--r-md);
+  background: var(--grad-gold);
+  color: #241704; box-shadow: var(--shadow-gold);
+  animation: floaty 4.5s ease-in-out infinite;
 }
+@keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 .auth-badge svg { width: 26px; height: 26px; }
-.auth-mark { font-size: 26px; font-weight: 900; letter-spacing: -.5px; }
-.auth-sub { margin: 4px 0 0; color: var(--text-dim); font-size: 13.5px; }
+.auth-mark { font-size: var(--fs-xl); font-weight: 900; letter-spacing: -.5px; }
+.auth-sub { margin: 4px 0 0; color: var(--text-dim); font-size: var(--fs-sm); }
 
 .tabs {
   position: relative; display: grid; grid-template-columns: 1fr 1fr;
-  margin-bottom: 24px; padding: 4px; gap: 4px;
-  background: var(--surface-2); border-radius: 999px;
+  margin-bottom: var(--sp-6); padding: 4px; gap: 4px;
+  background: var(--surface-2); border-radius: var(--r-full);
+  border: 1px solid var(--border);
 }
 .tabs::before {
   content: ""; position: absolute; top: 4px; bottom: 4px; inset-inline-start: 4px;
-  width: calc(50% - 4px); border-radius: 999px; z-index: 0;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  transition: transform .35s var(--ease-spring);
+  width: calc(50% - 4px); border-radius: var(--r-full); z-index: 0;
+  background: var(--grad-gold);
+  transition: transform var(--ease-spring-t);
 }
 .tabs:has(#tabSignup.is-on)::before { transform: translateX(calc(-100% - 4px)); }
 .tab {
   position: relative; z-index: 1; padding: 10px 4px;
-  background: none; border: 0; border-radius: 999px;
+  background: none; border: 0; border-radius: var(--r-full);
   color: var(--text-dim); font: inherit; font-weight: 700; cursor: pointer;
-  transition: color .25s;
+  transition: color var(--dur-slow);
 }
-.tab.is-on { color: #fff; }
+.tab.is-on { color: #241704; }
 
-/* ---------- الهيكل العام ---------- */
+/* ---------- 7) الهيكل العام ---------- */
 .app { height: 100dvh; }
 .layout { position: relative; height: 100%; overflow: hidden; }
 
@@ -227,183 +302,198 @@ body[data-view="app"] #appView { display: block; }
   display: flex; flex-direction: column; min-width: 0;
   background: var(--surface);
 }
+.sidebar { z-index: 1; }
 .pane {
   transform: translateX(-100%);
-  transition: transform .38s cubic-bezier(.32, .72, 0, 1);
+  transition: transform var(--dur-slow) var(--ease-out-expo);
   z-index: 2;
-  box-shadow: -16px 0 40px -22px rgba(0, 0, 0, .5);
+  box-shadow: -18px 0 44px -22px rgba(0, 0, 0, .55);
 }
 body[data-pane="chat"] .pane { transform: none; }
 
-/* ---------- رأس القائمة ---------- */
+/* تصليح: زرار "+" العايم كان أعلى من شاشة الشات (z-index:3 فوق .pane) فيفضل
+   طافي فوق زرار الإرسال حتى وانت جوه شات مفتوح. دلوقتي بيبقى تحت شاشة
+   الشات دايمًا، وكمان بيختفي بحركة لطيفة أول ما تفتح شات على الموبايل. */
+body[data-pane="chat"] .fab {
+  opacity: 0; transform: translateY(10px) scale(.7);
+  pointer-events: none;
+}
+
+/* ---------- 8) رأس القائمة ---------- */
 .side-head {
-  display: flex; align-items: center; gap: 12px;
-  height: var(--head-h); flex: 0 0 var(--head-h); padding: 0 16px;
+  display: flex; align-items: center; gap: var(--sp-3);
+  height: var(--head-h); flex: 0 0 var(--head-h); padding: 0 var(--sp-4);
   background: var(--surface-2); border-bottom: 1px solid var(--border);
 }
 .side-me { flex: 1; min-width: 0; line-height: 1.3; }
-.side-me strong { display: block; font-size: 14.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.side-me span { font-size: 12px; color: var(--text-faint); }
+.side-me strong { display: block; font-size: var(--fs-base); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-me span { font-size: var(--fs-xs); color: var(--text-faint); }
 
 .avatar {
   position: relative;
   display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px;
   border-radius: 50%; overflow: hidden;
-  background: linear-gradient(135deg, rgba(124, 92, 255, .38), rgba(34, 229, 200, .28)), var(--surface-3);
+  background: linear-gradient(135deg, rgba(217, 180, 102, .35), rgba(43, 217, 168, .25)), var(--surface-3);
   color: #fff; font-size: 17px; font-weight: 800;
   box-shadow: inset 0 0 0 1.5px var(--border);
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
-button.avatar { cursor: pointer; font-family: inherit; padding: 0; border: 0; }
-.avatar-me { box-shadow: 0 0 0 2px var(--surface-2), 0 0 0 4px var(--accent); transition: box-shadow .2s; }
-.avatar-me:hover { box-shadow: 0 0 0 2px var(--surface-2), 0 0 0 4px var(--accent-2); }
+button.avatar { cursor: pointer; font-family: inherit; padding: 0; border: 0; transition: transform var(--dur-fast) var(--ease-spring); }
+button.avatar:hover { transform: scale(1.05); }
+.avatar-me { box-shadow: 0 0 0 2px var(--surface-2), 0 0 0 4px var(--gold); transition: box-shadow var(--dur-fast); }
+.avatar-me:hover { box-shadow: 0 0 0 2px var(--surface-2), 0 0 0 4px var(--emerald); }
 .avatar-sm { width: 38px; height: 38px; flex-basis: 38px; font-size: 15px; }
 
-/* ---------- بحث القائمة ---------- */
+/* ---------- 9) بحث القائمة ---------- */
 .side-search {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border);
   color: var(--text-faint);
 }
 .side-search svg { flex: 0 0 18px; width: 18px; height: 18px; }
 .side-search input {
   flex: 1; min-width: 0; padding: 10px 14px;
-  background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
-  color: var(--text); font: inherit; font-size: 14px;
-  transition: border-color .2s, background .2s;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-full);
+  color: var(--text); font: inherit; font-size: var(--fs-sm);
+  transition: border-color var(--dur-fast), background var(--dur-fast);
 }
-.side-search input:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+.side-search input:focus { outline: none; border-color: var(--gold); background: var(--bg); }
 
-/* ---------- قائمة الدردشات ---------- */
+/* ---------- 10) قائمة الدردشات ---------- */
 .chat-list {
-  flex: 1; margin: 0; padding: 6px 8px; list-style: none;
+  flex: 1; margin: 0; padding: var(--sp-2); list-style: none;
   overflow-y: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column; gap: 2px;
 }
-.chat-list li { animation: rowIn .3s ease both; }
-@keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.chat-list li { animation: rowIn var(--dur-base) var(--ease-out) both; }
+.chat-list li:nth-child(n+2) { animation-delay: calc(var(--stagger, 1) * 30ms); }
+@keyframes rowIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 .chat-row {
   position: relative;
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
-  width: 100%; padding: 12px; background: none; border: 0; border-radius: 16px;
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-3);
+  width: 100%; padding: var(--sp-3); background: none; border: 0; border-radius: var(--r-md);
   color: inherit; font: inherit; text-align: right; cursor: pointer;
-  transition: background .2s;
+  transition: background var(--dur-fast), transform var(--dur-fast) var(--ease-standard);
 }
-@media (hover: hover) { .chat-row:hover { background: var(--surface-2); } }
-.chat-row.is-active { background: linear-gradient(135deg, rgba(124, 92, 255, .18), rgba(34, 229, 200, .1)); }
+@media (hover: hover) { .chat-row:hover { background: var(--surface-2); transform: translateY(-1px); } }
+.chat-row.is-active { background: linear-gradient(135deg, rgba(217, 180, 102, .16), rgba(43, 217, 168, .08)); }
 .chat-row.is-active::before {
   content: ""; position: absolute; inset-inline-start: 2px; top: 14%; bottom: 14%;
-  width: 3px; border-radius: 99px; background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  width: 3px; border-radius: var(--r-full); background: var(--grad-gold);
 }
 
 .chat-row-main { min-width: 0; }
 .chat-row-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.chat-row-name { font-size: 14.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chat-row-prev { margin-top: 3px; font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chat-row-prev.is-typing { color: var(--accent-2); }
+.chat-row-name { font-size: var(--fs-base); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-row-prev { margin-top: 3px; font-size: var(--fs-sm); color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.chat-row-prev.is-typing { color: var(--emerald); }
 
 .chat-row-side { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; flex: 0 0 auto; }
-.chat-row-time { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+.chat-row-time { font-size: var(--fs-xs); color: var(--text-faint); white-space: nowrap; }
 .badge {
   min-width: 20px; padding: 2px 7px;
-  background: linear-gradient(135deg, #ff6b8b, #ff8a5b);
-  border-radius: 99px; color: #1a0509; font-size: 11px; font-weight: 800; text-align: center;
-  box-shadow: 0 4px 12px -4px rgba(255, 107, 139, .6);
+  background: linear-gradient(135deg, var(--rose), #ff8a5b);
+  border-radius: var(--r-full); color: #200308; font-size: 11px; font-weight: 800; text-align: center;
+  box-shadow: 0 4px 12px -4px rgba(255, 111, 143, .6);
+  animation: badgeIn var(--ease-spring-t) both;
 }
+@keyframes badgeIn { from { transform: scale(0); } to { transform: scale(1); } }
 
 .verified {
   flex: 0 0 15px; width: 15px; height: 15px; padding: 2.5px;
-  border-radius: 50%; background: var(--accent-2); color: #04231d; stroke-width: 3.4;
+  border-radius: 50%; background: var(--emerald); color: #04231d; stroke-width: 3.4;
 }
 .official {
   padding: 1px 6px; background: var(--surface-3); border: 1px solid var(--border);
-  border-radius: 6px; color: var(--accent-2); font-size: 10.5px; font-weight: 800;
+  border-radius: 6px; color: var(--gold-2); font-size: 10.5px; font-weight: 800;
 }
 
 .side-empty {
   display: none; flex: 1; flex-direction: column; align-items: center; justify-content: center;
-  gap: 8px; padding: 36px 28px; text-align: center;
+  gap: var(--sp-2); padding: var(--sp-9) var(--sp-7); text-align: center;
 }
-.side-empty.is-on { display: flex; animation: fadeIn .3s ease; }
-.side-empty-art { width: 60px; height: 60px; display: grid; place-items: center; margin-bottom: 6px; border-radius: 20px; background: var(--surface-2); color: var(--text-faint); }
+.side-empty.is-on { display: flex; animation: fadeIn var(--dur-base) ease; }
+.side-empty-art { width: 60px; height: 60px; display: grid; place-items: center; margin-bottom: 6px; border-radius: var(--r-lg); background: var(--surface-2); color: var(--text-faint); }
 .side-empty-art svg { width: 28px; height: 28px; }
 .side-empty-title { margin: 0; font-weight: 800; }
-.side-empty-sub { margin: 0; color: var(--text-faint); font-size: 13px; line-height: 1.7; max-width: 230px; }
+.side-empty-sub { margin: 0; color: var(--text-faint); font-size: var(--fs-sm); line-height: 1.7; max-width: 230px; }
 
-/* ---------- زر الدردشة الجديدة ---------- */
+/* ---------- 11) زر الدردشة الجديدة (FAB) ---------- */
 .fab {
-  position: absolute; inset-block-end: max(20px, env(safe-area-inset-bottom)); inset-inline-start: 20px;
+  position: absolute; inset-block-end: max(20px, calc(env(safe-area-inset-bottom) + 12px)); inset-inline-start: 20px;
   display: grid; place-items: center; width: 56px; height: 56px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  border: 0; border-radius: 50%; color: #fff; cursor: pointer;
-  box-shadow: 0 16px 32px -12px rgba(124, 92, 255, .65);
-  transition: transform .3s var(--ease-spring);
-  z-index: 3;
+  background: var(--grad-gold);
+  border: 0; border-radius: 50%; color: #241704; cursor: pointer;
+  box-shadow: var(--shadow-gold);
+  transition: transform var(--ease-spring-t), opacity var(--dur-base) var(--ease-standard), box-shadow var(--dur-base);
+  z-index: 1;
 }
-.fab:hover { transform: translateY(-3px) scale(1.04); }
+.fab:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 20px 40px -12px rgba(217, 180, 102, .55); }
 .fab:active { transform: scale(.94); }
 .fab svg { position: relative; z-index: 1; width: 24px; height: 24px; stroke-width: 2.4; }
-.fab-ring { position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; animation: pulseRing 2.6s ease-out infinite; }
+.fab-ring { position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--gold); opacity: 0; animation: pulseRing 2.8s ease-out infinite; }
 @keyframes pulseRing { 0% { opacity: .5; transform: scale(.85); } 80% { opacity: 0; transform: scale(1.35); } 100% { opacity: 0; } }
 
-/* ---------- شاشة الشات ---------- */
+/* ---------- 12) شاشة الشات ---------- */
 .pane-idle {
   display: none; flex: 1; flex-direction: column; align-items: center; justify-content: center;
-  gap: 14px; color: var(--text-faint); text-align: center; padding: 20px;
+  gap: var(--sp-4); color: var(--text-faint); text-align: center; padding: var(--sp-5);
 }
-.pane-idle p { margin: 0; font-size: 13.5px; }
-.pane-idle-art { width: 84px; height: 84px; display: grid; place-items: center; border-radius: 28px; background: var(--surface-2); color: var(--text-faint); }
+.pane-idle p { margin: 0; font-size: var(--fs-sm); }
+.pane-idle-art { width: 84px; height: 84px; display: grid; place-items: center; border-radius: var(--r-xl); background: var(--surface-2); color: var(--text-faint); animation: floaty 5s ease-in-out infinite; }
 .pane-idle-art svg { width: 38px; height: 38px; }
-.pane-idle-mark { font-size: 22px; font-weight: 900; opacity: .5; letter-spacing: .5px; }
+.pane-idle-mark { font-size: var(--fs-lg); font-weight: 900; opacity: .5; letter-spacing: .5px; }
 
 .chat { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .chat[hidden] { display: none; }
 
 .chat-head {
-  display: flex; align-items: center; gap: 12px;
-  height: var(--head-h); flex: 0 0 var(--head-h); padding: 0 14px;
+  display: flex; align-items: center; gap: var(--sp-3);
+  height: var(--head-h); flex: 0 0 var(--head-h); padding: 0 var(--sp-4);
   background: var(--surface-2); border-bottom: 1px solid var(--border);
 }
 .chat-who { min-width: 0; line-height: 1.3; }
-.chat-who strong { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; }
+.chat-who strong { display: flex; align-items: center; gap: 6px; font-size: var(--fs-md); font-weight: 700; }
 
-.chat-status { display: block; font-size: 12px; color: var(--text-faint); min-height: 16px; transition: color .2s; }
-.chat-status.is-online { color: var(--accent-2); }
-.chat-status.is-typing { color: var(--accent); }
+.chat-status { display: block; font-size: var(--fs-xs); color: var(--text-faint); min-height: 16px; transition: color var(--dur-fast); }
+.chat-status.is-online { color: var(--emerald); }
+.chat-status.is-typing { color: var(--gold); }
 .chat-head:has(.chat-status.is-online) .avatar::after {
   content: ""; position: absolute; inset-inline-end: 0; bottom: 0;
-  width: 11px; height: 11px; border-radius: 50%; background: var(--accent-2);
-  box-shadow: 0 0 0 2.5px var(--surface-2), 0 0 10px var(--accent-2);
+  width: 11px; height: 11px; border-radius: 50%; background: var(--emerald);
+  box-shadow: 0 0 0 2.5px var(--surface-2), 0 0 10px var(--emerald);
 }
 
-/* ---------- الرسائل ---------- */
+/* ---------- 13) الرسائل ---------- */
 .messages {
-  flex: 1; min-height: 0; padding: 18px 14px 10px;
+  flex: 1; min-height: 0; padding: var(--sp-5) var(--sp-4) var(--sp-2);
   overflow-y: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column; gap: 3px;
   background:
-    radial-gradient(1200px 500px at 15% -10%, rgba(124, 92, 255, .07), transparent 60%),
-    radial-gradient(1000px 500px at 100% 110%, rgba(34, 229, 200, .06), transparent 60%),
+    radial-gradient(1200px 500px at 85% -10%, rgba(217, 180, 102, .06), transparent 60%),
+    radial-gradient(1000px 500px at 0% 110%, rgba(43, 217, 168, .05), transparent 60%),
     var(--surface);
 }
 .msg-day {
-  align-self: center; margin: 14px 0 12px; padding: 5px 14px;
-  background: var(--surface-2); border: 1px solid var(--border); border-radius: 99px;
-  color: var(--text-dim); font-size: 11.5px; font-weight: 700;
+  align-self: center; margin: 14px 0 12px; padding: 5px var(--sp-4);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-full);
+  color: var(--text-dim); font-size: var(--fs-xs); font-weight: 700;
 }
 .msg {
   max-width: 82%; padding: 9px 13px 7px;
-  border-radius: 18px; background: var(--surface-3);
-  font-size: 14.5px; word-wrap: break-word; overflow-wrap: anywhere; white-space: pre-wrap;
+  border-radius: var(--r-md); background: var(--surface-3);
+  font-size: var(--fs-md); word-wrap: break-word; overflow-wrap: anywhere; white-space: pre-wrap;
   box-shadow: 0 6px 16px -10px rgba(0, 0, 0, .5);
-  animation: msgIn .22s ease both;
+  animation: msgIn var(--dur-base) var(--ease-out) both;
 }
-@keyframes msgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-/* في RTL: رسايلي على الشمال (flex-end) ورسايل التاني على اليمين (flex-start) — زي واتساب */
+@keyframes msgIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* في RTL: رسايلي على الشمال (flex-end) ورسايل التاني على اليمين (flex-start)
+   — زي واتساب العربي فعلاً (سيبتها زي ما كانت، الاختبارات بتتأكد منها). */
 .msg.is-mine {
   align-self: flex-end;
-  background: linear-gradient(135deg, #6d4aff, #4638e0);
+  background: var(--grad-mine);
   color: #fff;
 }
 .msg.is-theirs { align-self: flex-start; border: 1px solid var(--border); }
@@ -417,13 +507,13 @@ button.avatar { cursor: pointer; font-family: inherit; padding: 0; border: 0; }
 }
 .msg.is-mine .msg-meta { color: rgba(255, 255, 255, .72); }
 .msg.is-pending { opacity: .6; }
-.msg-tick.is-read { color: var(--accent-2); }
+.msg-tick.is-read { color: var(--emerald); }
 .msg.is-mine .msg-tick.is-read { color: #bdf5ea; }
 
 .msg-empty, .msg-error {
-  align-self: center; margin: auto 0; padding: 16px;
-  color: var(--text-faint); font-size: 13.5px; text-align: center; line-height: 1.8;
-  animation: fadeIn .3s ease;
+  align-self: center; margin: auto 0; padding: var(--sp-4);
+  color: var(--text-faint); font-size: var(--fs-sm); text-align: center; line-height: 1.8;
+  animation: fadeIn var(--dur-base) ease;
 }
 .msg-error { color: var(--warn); }
 
@@ -435,109 +525,108 @@ button.avatar { cursor: pointer; font-family: inherit; padding: 0; border: 0; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* ---------- خانة الكتابة ---------- */
+/* ---------- 14) خانة الكتابة ---------- */
 .composer {
-  display: flex; align-items: flex-end; gap: 10px; flex: 0 0 auto;
-  padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+  display: flex; align-items: flex-end; gap: var(--sp-3); flex: 0 0 auto;
+  padding: var(--sp-3) var(--sp-4) calc(var(--sp-3) + env(safe-area-inset-bottom));
   background: var(--surface-2); border-top: 1px solid var(--border);
 }
 
 /* التكست إيريا بتكبر لتحت لما الكلام يطول — مش بتتمدّ على الجناب */
 #composerInput {
   flex: 1; min-width: 0; min-height: 46px; max-height: 168px;
-  padding: 12px 16px;
+  padding: 12px var(--sp-4);
   background: var(--surface); border: 1.5px solid var(--border); border-radius: 22px;
-  color: var(--text); font: inherit; font-size: 15px; line-height: 1.45;
+  color: var(--text); font: inherit; font-size: var(--fs-md); line-height: 1.45;
   resize: none; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere;
-  transition: border-color .2s, box-shadow .2s;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base);
 }
 #composerInput::placeholder { color: var(--text-faint); }
-#composerInput:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(124, 92, 255, .15); }
+#composerInput:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 4px rgba(217, 180, 102, .14); }
 
 .send-btn {
   display: grid; place-items: center; width: 46px; height: 46px; flex: 0 0 46px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  border: 0; border-radius: 50%; color: #fff; cursor: pointer;
-  box-shadow: 0 10px 22px -10px rgba(124, 92, 255, .6);
-  transition: transform .2s, opacity .2s, box-shadow .2s;
+  background: var(--grad-gold);
+  border: 0; border-radius: 50%; color: #241704; cursor: pointer;
+  box-shadow: var(--shadow-gold);
+  transition: transform var(--dur-fast) var(--ease-spring), opacity var(--dur-fast), box-shadow var(--dur-base);
 }
 .send-btn:hover:not(:disabled) { transform: translateY(-2px) scale(1.05); }
 .send-btn:active:not(:disabled) { transform: scale(.92); }
 .send-btn:disabled { opacity: .4; cursor: default; box-shadow: none; transform: none; }
-.send-btn svg { transform: scaleX(-1); transition: transform .2s; }
+.send-btn svg { transform: scaleX(-1); transition: transform var(--dur-fast); }
 .send-btn:hover:not(:disabled) svg { transform: scaleX(-1) translateX(2px); }
 
-/* ---------- المودالز ---------- */
+/* ---------- 15) المودالز ---------- */
 .sheet-wrap { position: fixed; inset: 0; z-index: 50; display: grid; place-items: end center; }
 .sheet-wrap[hidden] { display: none; }
 .sheet-backdrop {
   position: absolute; inset: 0;
-  background: rgba(4, 5, 10, .7); backdrop-filter: blur(4px);
-  animation: fadeIn .25s ease;
+  background: rgba(4, 5, 10, .72); backdrop-filter: blur(5px);
+  animation: fadeIn var(--dur-base) ease;
 }
 
 .sheet {
   position: relative; width: 100%; max-height: 88dvh; overflow-y: auto;
   background: var(--surface-2); border: 1px solid var(--border);
   border-radius: 26px 26px 0 0; box-shadow: var(--shadow-lg);
-  animation: sheetUp .38s var(--ease-spring);
+  animation: sheetUp var(--dur-slower) var(--ease-spring);
 }
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-.sheet-grip { width: 40px; height: 4px; margin: 10px auto 0; border-radius: 99px; background: var(--border); }
+.sheet-grip { width: 40px; height: 4px; margin: 10px auto 0; border-radius: var(--r-full); background: var(--border); }
 .sheet-head {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 12px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--border);
 }
-.sheet-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
-.sheet-body { padding: 18px 18px calc(20px + env(safe-area-inset-bottom)); }
+.sheet-head h2 { margin: 0; font-size: var(--fs-md); font-weight: 800; }
+.sheet-body { padding: var(--sp-5) var(--sp-5) calc(var(--sp-6) + env(safe-area-inset-bottom)); }
 
-.search-out { margin-top: 16px; }
-.search-msg { margin: 0; color: var(--text-faint); font-size: 13.5px; text-align: center; line-height: 1.8; }
+.search-out { margin-top: var(--sp-4); }
+.search-msg { margin: 0; color: var(--text-faint); font-size: var(--fs-sm); text-align: center; line-height: 1.8; }
 .search-msg.is-error { color: var(--danger); }
 .search-hit {
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
-  width: 100%; padding: 12px;
-  background: var(--surface-3); border: 1px solid var(--border); border-radius: 16px;
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-3);
+  width: 100%; padding: var(--sp-3); background: var(--surface-3); border: 1px solid var(--border); border-radius: var(--r-md);
   color: inherit; font: inherit; text-align: right; cursor: pointer;
-  transition: border-color .2s, transform .2s;
+  transition: border-color var(--dur-fast), transform var(--dur-fast);
 }
-.search-hit:hover { border-color: var(--accent); transform: translateY(-1px); }
+.search-hit:hover { border-color: var(--gold); transform: translateY(-1px); }
 .search-hit-main { min-width: 0; }
 .search-hit-name { display: flex; align-items: center; gap: 6px; font-weight: 700; }
-.search-hit-phone { font-size: 12.5px; color: var(--text-faint); }
-.search-hit-go { color: var(--accent-2); font-size: 12.5px; font-weight: 800; }
+.search-hit-phone { font-size: var(--fs-xs); color: var(--text-faint); }
+.search-hit-go { color: var(--emerald); font-size: var(--fs-xs); font-weight: 800; }
 
-/* ---------- التوستات ---------- */
+/* ---------- 16) التوستات ---------- */
 .toasts {
   position: fixed; inset-block-end: calc(20px + env(safe-area-inset-bottom)); inset-inline: 0;
-  z-index: 90; display: flex; flex-direction: column; align-items: center; gap: 8px;
-  pointer-events: none; padding: 0 16px;
+  z-index: 90; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2);
+  pointer-events: none; padding: 0 var(--sp-4);
 }
 .toast {
-  max-width: 420px; padding: 12px 16px;
+  max-width: 420px; padding: var(--sp-3) var(--sp-4);
   background: var(--surface-3); border: 1px solid var(--border);
-  border-inline-start: 3px solid var(--accent-2); border-radius: 14px;
-  color: var(--text); font-size: 13.5px; font-weight: 600;
+  border-inline-start: 3px solid var(--gold); border-radius: var(--r-md);
+  color: var(--text); font-size: var(--fs-sm); font-weight: 600;
   box-shadow: var(--shadow-sm);
-  animation: toastIn .35s var(--ease-spring);
+  animation: toastIn var(--ease-spring-t);
 }
 @keyframes toastIn { from { opacity: 0; transform: translateY(14px) scale(.95); } to { opacity: 1; transform: none; } }
 .toast.is-error { border-inline-start-color: var(--danger); }
 .toast.is-warn { border-inline-start-color: var(--warn); }
 
-/* ---------- سكرول بار ---------- */
+/* ---------- 17) سكرول بار ---------- */
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 9px; }
-::-webkit-scrollbar-thumb:hover { background: #3a4158; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: var(--r-full); }
+::-webkit-scrollbar-thumb:hover { background: #3d4460; }
 
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 /* ==========================================================
    تابلت — المودالز تبقى في النص بدل ما تطلع من تحت
    ========================================================== */
 @media (min-width: 700px) {
-  .sheet-wrap { place-items: center; padding: 20px; }
+  .sheet-wrap { place-items: center; padding: var(--sp-5); }
   .sheet { max-width: 460px; border-radius: 26px; }
   .sheet-grip { display: none; }
 }
@@ -546,13 +635,11 @@ button.avatar { cursor: pointer; font-family: inherit; padding: 0; border: 0; }
    كمبيوتر — بطاقة عائمة في نص الشاشة، لوحين جنب بعض، مفيش تبديل شاشات
    ========================================================== */
 @media (min-width: 900px) {
-  body { font-size: 15px; }
-
   .app {
     height: calc(100dvh - 48px);
-    margin: 24px auto;
+    margin: var(--sp-6) auto;
     max-width: 1500px;
-    border-radius: 28px;
+    border-radius: var(--r-xl);
     overflow: hidden;
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--border);
@@ -564,7 +651,7 @@ button.avatar { cursor: pointer; font-family: inherit; padding: 0; border: 0; }
     height: 100%;
   }
   .sidebar, .pane {
-    position: static;
+    position: relative;
     inset: auto;
     transform: none !important;
     transition: none;
@@ -577,15 +664,19 @@ button.avatar { cursor: pointer; font-family: inherit; padding: 0; border: 0; }
   body[data-pane="list"] .pane-idle { display: flex; }
   .back-btn { display: none; }
 
-  .fab { inset-block-end: 24px; inset-inline-start: 24px; }
+  /* تصليح: دلوقتي .sidebar بقى position:relative بشكل صريح على الكمبيوتر
+     (كان static قبل كده)، فزرار "+" بيتحدد مكانه جوه القائمة بس، مش
+     بالنسبة لعرض الشاشة كله. وبما إنه مش في شاشة شات منفصلة على
+     الكمبيوتر أصلاً، فمفيش داعي يختفي هنا. */
+  body[data-pane="chat"] .fab { opacity: 1; transform: none; pointer-events: auto; }
 
-  .msg { max-width: 60%; }
-  .messages { padding: 24px 28px 10px; }
-  .composer { padding: 16px 28px; }
-  .chat-head { padding: 0 22px; }
-  .side-head { padding: 0 18px; }
+  .msg { max-width: 58%; }
+  .messages { padding: var(--sp-6) var(--sp-7) 10px; }
+  .composer { padding: var(--sp-4) var(--sp-7); }
+  .chat-head { padding: 0 var(--sp-5); }
+  .side-head { padding: 0 var(--sp-5); }
 
-  .chat-row { padding: 13px 14px; }
+  .chat-row { padding: 13px var(--sp-3); }
   .auth-card { padding: 40px 34px 30px; }
 }
 
@@ -593,9 +684,8 @@ button.avatar { cursor: pointer; font-family: inherit; padding: 0; border: 0; }
    شاشات عريضة — نحدّد عرض الرسايل عشان القراية تفضل مريحة
    ========================================================== */
 @media (min-width: 1400px) {
-  :root { --side-w: 404px; }
-  .msg { max-width: 52%; }
-  .messages, .composer { padding-inline: max(28px, calc((100% - 1100px) / 2)); }
+  .msg { max-width: 50%; }
+  .messages, .composer { padding-inline: max(32px, calc((100% - 1100px) / 2)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

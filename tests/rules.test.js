@@ -87,10 +87,18 @@ test('conversations/$convId مفيهوش .write على مستوى الأب — �
     '.write على الأب بيورّث لكل الأبناء وبيلغي حماية الرسايل من التعديل');
 });
 
-test('الرسايل مالهاش تعديل: الكتابة بس لو الرسالة لسه مش موجودة', () => {
+test('الرسايل: تنفع تتمسح بعد التوصيل (زي واتساب)، بس مايتعدّلش نصها خالص', () => {
   const msg = at(rules, 'conversations', '$convId', 'messages', '$messageId');
-  assert.match(msg['.write'], /!data\.exists\(\)/, 'من غير ده الرسايل تنفع تتعدّل أو تتمسح');
+  assert.match(msg['.write'], /!data\.exists\(\)/, 'لازم يسمح بالإنشاء لو الرسالة لسه مش موجودة');
+  assert.match(msg['.write'], /!newData\.exists\(\)/, 'لازم يسمح بالمسح (newData فاضية) — عشان الرسالة تتشال من السيرفر بعد ما توصل وتتخزن على جهاز المستقبل');
   assert.match(msg['.validate'], /senderId'\)\.val\(\) === auth\.uid/, 'ماينفعش تبعت باسم حد تاني');
+});
+
+test('الرسايل: التعديل (الرسالة موجودة وبتتكتب فوقها قيمة جديدة) لازم يفضل مرفوض', () => {
+  const w = at(rules, 'conversations', '$convId', 'messages', '$messageId')['.write'];
+  // الشرط لازم يكون (!data.exists() || !newData.exists()) — أي "إنشاء أو مسح"، مش "تعديل"
+  assert.match(w, /\(\s*!data\.exists\(\)\s*\|\|\s*!newData\.exists\(\)\s*\)/,
+    'الشرط لازم يكون OR بين !data.exists() و !newData.exists() بالظبط — عشان التعديل (اللي فيه الاتنين موجودين) يفضل الحالة الوحيدة المرفوضة');
 });
 
 test('messages فيه .indexOn لـ ts', () => {

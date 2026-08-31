@@ -4,7 +4,7 @@
 //   - أي حاجة تحت /api/ أو Firebase: من النت دايمًا، ومفيش كاش خالص
 //     (رسايل وتوكنات ماينفعش تتكاش).
 //   - لو النت قاطع وفتحت التطبيق: بنرجّع index.html من الكاش.
-const VERSION = 'malg-v2';
+const VERSION = 'malg-v3';
 const SHELL = [
   '/',
   '/index.html',
@@ -12,6 +12,7 @@ const SHELL = [
   '/js/phone.js',
   '/js/format.js',
   '/js/paths.js',
+  '/js/store.js',
   '/js/app.js',
   '/firebase-client-config.js',
   '/manifest.json',

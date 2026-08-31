@@ -14,6 +14,10 @@
   const Phone = window.MalgPhone;
   const Fmt = window.MalgFormat;
   const Paths = window.MalgPaths;
+  const Store = window.MalgStore;
+
+  const MAX_IMAGE_MB = 15;
+  const MAX_VIDEO_MB = 100;
 
   const TOKEN_KEY = 'malg_token';
   const SUPPORT_WHATSAPP = '201065749774';
@@ -42,6 +46,7 @@
     chatAvatar: $('chatAvatar'), chatName: $('chatName'), chatStatus: $('chatStatus'),
     messages: $('messages'),
     composerForm: $('composerForm'), composerInput: $('composerInput'), sendBtn: $('sendBtn'),
+    attachBtn: $('attachBtn'), mediaInput: $('mediaInput'),
     // modals
     newChatModal: $('newChatModal'), searchForm: $('searchForm'),
     searchPhone: $('searchPhone'), searchBtn: $('searchBtn'), searchOut: $('searchOut'),
@@ -57,6 +62,7 @@
     activeId: null,
     messages: [],
     pending: new Map(), // cid -> رسالة مؤقتة لسه ما وصلتش
+    cleanedIds: new Set(), // آي-ديهات الرسايل اللي اتمسحت من Firebase بعد ما اتخزنت على الجهاز — عشان منحاولش تاني كل مرة
     otherReadAt: 0,
     otherTypingAt: 0,
     presence: null,
@@ -66,6 +72,7 @@
   };
 
   let db = null;
+  let storage = null;
   const off = {}; // detach functions لكل listener
 
   function detach(key) {
@@ -272,6 +279,13 @@
     paintMe();
     el.body.dataset.view = 'app';
     setPane('list');
+
+    // بنجهّز التخزين المحلي على جهاز المستخدم ده، ونرسم أي دردشات اتخزنت
+    // فيه من قبل فورًا — من غير ما ننتظر Firebase أصلًا (زي واتساب أول
+    // ما تفتحه: بتشوف شاتاتك على طول من غير "بيحمّل").
+    await Store.init(user.id);
+    const cachedChats = await Store.getChats();
+    cachedChats.forEach((c) => state.chats.set(String(c.id), c));
     renderChatList();
 
     try {
@@ -298,6 +312,7 @@
     const data = await api('/api/firebase-token');
     await firebase.auth().signInWithCustomToken(data.firebaseToken);
     db = firebase.database();
+    storage = firebase.storage();
   }
 
   /** حضور حقيقي: online دلوقتي + offline أوتوماتيك لو النت قطع أو التاب اتقفل */
@@ -349,6 +364,7 @@
         if (active && !state.chats.has(active.id)) state.chats.set(active.id, active);
         renderChatList();
         if (state.activeId) paintChatHeader();
+        Store.saveChats(Array.from(state.chats.values()));
       },
       (err) => {
         console.error('chat list listener failed:', err && err.code, err);
@@ -476,6 +492,7 @@
     state.activeId = otherId;
     state.messages = [];
     state.pending.clear();
+    state.cleanedIds = new Set();
     state.otherReadAt = 0;
     state.otherTypingAt = 0;
     state.presence = null;
@@ -486,9 +503,15 @@
     setPane('chat');
     paintChatHeader();
     renderChatList();
-    renderMessages({ loading: true });
     resetComposer();
     pushChatHistory(otherId);
+
+    // بنعرض الرسايل المخزّنة على الجهاز فورًا (لو موجودة) بدل "بيحمّل"،
+    // ولما Firebase يرد هيستبدلها بالنسخة المحدّثة.
+    const cachedMsgs = await Store.getMessages(convId);
+    if (state.activeId !== otherId) return;
+    if (cachedMsgs.length) { state.messages = cachedMsgs; renderMessages(); }
+    else renderMessages({ loading: true });
 
     // ⚠️ الترتيب مهم: participants + تسجيل الدردشة الأول، بعدين السماعات.
     // لو عكسنا، أول واحد يفتح دردشة جديدة بياخد permission_denied وبيقعد على "بيحمّل" للأبد.
@@ -588,24 +611,51 @@
     const ref = db.ref(Paths.messages(convId)).orderByChild('ts').limitToLast(MESSAGES_WINDOW);
     const cb = ref.on(
       'value',
-      (snap) => {
-        const list = [];
+      async (snap) => {
+        const live = [];
         snap.forEach((child) => {
           const v = child.val() || {};
-          list.push({
+          live.push({
             id: child.key,
             senderId: String(v.senderId),
             text: String(v.text || ''),
             ts: Number(v.ts) || 0,
             cid: v.cid,
+            type: v.type || 'text',
+            mediaUrl: v.mediaUrl || null,
           });
         });
-        list.sort((a, b) => (a.ts || 0) - (b.ts || 0));
-        state.messages = list;
+        live.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+
+        // بنسجّل النسخة الحيّة على جهاز المستخدم قبل أي حاجة تانية —
+        // عشان نضمن إنها اتخزنت فعلاً قبل ما نفكر نمسحها من Firebase.
+        await Store.saveMessages(convId, live);
+
+        // الشاشة بتتبني من (الجهاز + Firebase) مع بعض، مش من Firebase بس —
+        // عشان أي رسالة اتمسحت من السيرفر بعد ما توصلت تفضل ظاهرة عندي
+        // من النسخة المخزّنة على جهازي.
+        const cached = await Store.getMessages(convId);
+        const byId = new Map(cached.map((m) => [m.id, m]));
+        live.forEach((m) => byId.set(m.id, m));
+        const merged = Array.from(byId.values()).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+
+        state.messages = merged;
         // أي رسالة مؤقتة وصلت فعلاً بنشيلها من قائمة الانتظار
-        list.forEach((m) => { if (m.cid) state.pending.delete(m.cid); });
+        live.forEach((m) => { if (m.cid) state.pending.delete(m.cid); });
         renderMessages();
         markRead();
+
+        // تصليح: الرسايل اللي وصلتلي (مش أنا اللي بعتها) وخزّنتها على جهازي
+        // فوق، بقت آمنة — تنفع تتشال من Firebase دلوقتي، بالظبط زي واتساب
+        // (يفضل عندي انا بس، مش عند حد تاني، ومش على سيرفر حد).
+        const me = myId();
+        live.forEach((m) => {
+          if (String(m.senderId) === me) return; // رسايلي أنا: الطرف التاني هو اللي هيمسحها لما يستقبلها
+          if (state.cleanedIds.has(m.id)) return;
+          state.cleanedIds.add(m.id);
+          db.ref(Paths.messages(convId) + '/' + m.id).remove()
+            .catch((err) => { state.cleanedIds.delete(m.id); console.warn('مسح الرسالة من السيرفر فشل (هيتعاد المحاولة تلقائي)', err && err.code); });
+        });
       },
       (err) => {
         console.error('messages listener failed:', err && err.code, err);
@@ -708,8 +758,38 @@
     if (item.endsGroup) div.classList.add('ends-group');
     if (m.pending) div.classList.add('is-pending');
 
-    // textContent مش innerHTML — أي رسالة فيها HTML بتظهر كنص عادي
-    div.appendChild(document.createTextNode(m.text));
+    if (m.type === 'image' || m.type === 'video') {
+      div.classList.add('has-media');
+      const wrap = document.createElement('div');
+      wrap.className = 'msg-media';
+      const media = m.type === 'video' ? document.createElement('video') : document.createElement('img');
+      media.src = m.mediaUrl;
+      if (m.type === 'video') { media.controls = true; media.playsInline = true; }
+      else { media.loading = 'lazy'; media.alt = 'صورة'; }
+      wrap.appendChild(media);
+
+      if (typeof m.uploadPct === 'number' && m.uploadPct < 100) {
+        const bar = document.createElement('span');
+        bar.className = 'msg-media-progress';
+        bar.style.setProperty('--pct', m.uploadPct + '%');
+        wrap.appendChild(bar);
+      } else if (m.type === 'image') {
+        wrap.style.cursor = 'zoom-in';
+        wrap.addEventListener('click', () => openLightbox(m.mediaUrl, false));
+      }
+      div.appendChild(wrap);
+
+      const isPlaceholder = m.text === '📷 صورة' || m.text === '🎥 فيديو';
+      if (!isPlaceholder && m.text) {
+        const cap = document.createElement('div');
+        cap.className = 'msg-caption';
+        cap.appendChild(document.createTextNode(m.text));
+        div.appendChild(cap);
+      }
+    } else {
+      // textContent مش innerHTML — أي رسالة فيها HTML بتظهر كنص عادي
+      div.appendChild(document.createTextNode(m.text));
+    }
 
     const meta = document.createElement('span');
     meta.className = 'msg-meta';
@@ -728,6 +808,17 @@
 
     div.appendChild(meta);
     return div;
+  }
+
+  /** فتح الصورة بحجمها الكامل فوق الشاشة كلها */
+  function openLightbox(url) {
+    const wrap = document.createElement('div');
+    wrap.className = 'lightbox';
+    const img = document.createElement('img');
+    img.src = url;
+    wrap.appendChild(img);
+    wrap.addEventListener('click', () => wrap.remove());
+    document.body.appendChild(wrap);
   }
 
   function typingBubble() {
@@ -793,6 +884,79 @@
       renderMessages();
       const denied = err && err.code === 'PERMISSION_DENIED';
       toast(denied ? 'الرسالة ماوصلتش — راجع قواعد الأمان في Firebase' : 'الرسالة ماوصلتش — حاول تاني', 'error');
+    }
+  }
+
+  // ============================================================
+  // إرسال صورة/فيديو
+  // ============================================================
+  el.attachBtn.addEventListener('click', () => {
+    if (!state.activeId) return;
+    el.mediaInput.value = '';
+    el.mediaInput.click();
+  });
+
+  el.mediaInput.addEventListener('change', () => {
+    const file = el.mediaInput.files && el.mediaInput.files[0];
+    if (file) sendMedia(file);
+  });
+
+  async function sendMedia(file) {
+    const chat = state.chats.get(state.activeId);
+    if (!chat || !db || !storage) return;
+
+    const isVideo = file.type.startsWith('video/');
+    const isImage = file.type.startsWith('image/');
+    if (!isImage && !isVideo) { toast('الملف ده لازم يكون صورة أو فيديو', 'error'); return; }
+
+    const maxMb = isVideo ? MAX_VIDEO_MB : MAX_IMAGE_MB;
+    if (file.size > maxMb * 1024 * 1024) {
+      toast('الملف كبير أوي — الحد الأقصى ' + maxMb + ' ميجا', 'error');
+      return;
+    }
+
+    const caption = el.composerInput.value.trim();
+    const placeholder = isVideo ? '🎥 فيديو' : '📷 صورة';
+    const text = caption || placeholder;
+    const type = isVideo ? 'video' : 'image';
+
+    const cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const localUrl = URL.createObjectURL(file);
+    state.pending.set(cid, {
+      id: cid, cid, senderId: myId(), text, ts: Date.now(), pending: true,
+      type, mediaUrl: localUrl, uploadPct: 0,
+    });
+
+    el.composerInput.value = '';
+    resetComposer();
+    renderMessages();
+
+    const ext = (file.name.split('.').pop() || (isVideo ? 'mp4' : 'jpg')).toLowerCase();
+    const path = 'chat-media/' + chat.convId + '/' + cid + '.' + ext;
+    const ref = storage.ref().child(path);
+    const task = ref.put(file, { contentType: file.type });
+
+    task.on('state_changed', (snap) => {
+      const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+      const p = state.pending.get(cid);
+      if (p) { p.uploadPct = pct; renderMessages(); }
+    });
+
+    try {
+      await task;
+      const mediaUrl = await ref.getDownloadURL();
+      await db.ref(Paths.messages(chat.convId)).push({
+        senderId: myId(), text, ts: stamp(), cid, type, mediaUrl,
+      });
+      await writeChatSummaries(chat, text);
+    } catch (err) {
+      console.error('media send failed:', err && err.code, err);
+      state.pending.delete(cid);
+      renderMessages();
+      const denied = err && err.code === 'PERMISSION_DENIED' || (err && err.code === 'storage/unauthorized');
+      toast(denied ? 'الملف ماوصلش — تأكد إنك فعّلت Firebase Storage وحطيت قواعده' : 'الملف ماوصلش — حاول تاني', 'error');
+    } finally {
+      URL.revokeObjectURL(localUrl);
     }
   }
 

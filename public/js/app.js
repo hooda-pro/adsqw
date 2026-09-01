@@ -1086,7 +1086,10 @@
       const u = state.pendingLocalUrls.get(cid);
       if (u) { URL.revokeObjectURL(u); state.pendingLocalUrls.delete(cid); }
       renderMessages();
-      toast('الملف ماوصلش — حاول تاني', 'error');
+      // بنوري رسالة الخطأ الحقيقية على الشاشة عشان تعرف السبب بالظبط من
+      // غير ما تحتاج تفتح أدوات المطوّر في المتصفح خالص
+      const detail = (err && err.message) ? String(err.message).slice(0, 160) : '';
+      toast(detail ? ('الملف ماوصلش: ' + detail) : 'الملف ماوصلش — حاول تاني', 'error');
     }
   }
 

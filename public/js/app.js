@@ -613,7 +613,7 @@
     const ref = db.ref(Paths.messages(convId)).orderByChild('ts').limitToLast(MESSAGES_WINDOW);
     const cb = ref.on(
       'value',
-      async (snap) => {
+      (snap) => {
         const live = [];
         snap.forEach((child) => {
           const v = child.val() || {};
@@ -629,27 +629,28 @@
         });
         live.sort((a, b) => (a.ts || 0) - (b.ts || 0));
 
-        // بنسجّل النسخة الحيّة على جهاز المستخدم قبل أي حاجة تانية —
-        // عشان نضمن إنها اتخزنت فعلاً قبل ما نفكر نمسحها من Firebase.
-        await Store.saveMessages(convId, live);
-
-        // الشاشة بتتبني من (الجهاز + Firebase) مع بعض، مش من Firebase بس —
-        // عشان أي رسالة اتمسحت من السيرفر بعد ما توصلت تفضل ظاهرة عندي
-        // من النسخة المخزّنة على جهازي.
-        const cached = await Store.getMessages(convId);
-        const byId = new Map(cached.map((m) => [m.id, m]));
+        // تصليح: الرسالة كانت بتتأخر شوية عشان كنا بننتظر (await) قراءة/كتابة
+        // IndexedDB قبل ما نعرض حاجة على الشاشة خالص. دلوقتي العرض فوري
+        // (مثل ما كان بالظبط)، والتخزين على الجهاز والتنضيف بيحصلوا في
+        // الخلفية من غير ما يأخّروا ظهور الرسالة ولا نقطة واحدة.
+        //
+        // بندمج مع اللي عندي في الذاكرة أصلاً (مش هنفتح IndexedDB تاني) —
+        // ده كافي عشان أي رسالة كانت اتحمّلت من الجهاز لما فتحت الشات
+        // (في openChat) تفضل ظاهرة حتى لو السيرفر مسحها بعد كده.
+        const byId = new Map(state.messages.map((m) => [m.id, m]));
         live.forEach((m) => byId.set(m.id, m));
-        const merged = Array.from(byId.values()).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+        state.messages = Array.from(byId.values()).sort((a, b) => (a.ts || 0) - (b.ts || 0));
 
-        state.messages = merged;
-        // أي رسالة مؤقتة وصلت فعلاً بنشيلها من قائمة الانتظار
         live.forEach((m) => { if (m.cid) state.pending.delete(m.cid); });
         renderMessages();
         markRead();
 
-        // تصليح: الرسايل اللي وصلتلي (مش أنا اللي بعتها) وخزّنتها على جهازي
-        // فوق، بقت آمنة — تنفع تتشال من Firebase دلوقتي، بالظبط زي واتساب
-        // (يفضل عندي انا بس، مش عند حد تاني، ومش على سيرفر حد).
+        // تخزين على جهاز المستخدم — في الخلفية، مايأخّرش ظهور الرسالة
+        Store.saveMessages(convId, live).catch(() => {});
+
+        // تنضيف: الرسايل اللي وصلتلي (مش أنا اللي بعتها) وخزّنتها فوق،
+        // بقت آمنة تتشال من Firebase — بالظبط زي واتساب. ده كمان بيحصل
+        // في الخلفية، مايأخّرش ولا يوقف عرض الرسالة.
         const me = myId();
         live.forEach((m) => {
           if (String(m.senderId) === me) return; // رسايلي أنا: الطرف التاني هو اللي هيمسحها لما يستقبلها

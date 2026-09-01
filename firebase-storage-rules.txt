@@ -1,0 +1,38 @@
+// firebase-storage-rules.txt
+// ============================================================
+// قواعد أمان Firebase Storage — للصور والفيديوهات اللي بتتبعت في الشات.
+// الصق المحتوى ده في Firebase Console → Storage → Rules (زي بالظبط ما
+// عملت مع قواعد الـ Realtime Database).
+//
+// المنطق:
+//   - أي ملف بيتحط تحت chat-media/{convId}/...
+//   - convId شكله "uid1_uid2" (نفس فكرة الـ Realtime Database بالظبط).
+//   - يقرا/يكتب بس اللي هو uid1 أو uid2 في الـ convId ده — يعني طرفين
+//     الدردشة بس، مش أي حد تاني عنده حساب.
+//   - في وقت الرفع (write) بنتأكد إن نوع الملف صورة أو فيديو فعلاً،
+//     وإن حجمه معقول (100 ميجا كحد أقصى) — عشان محدش يرفع أي حاجة تانية
+//     أو يستهلك مساحة التخزين المجانية بسرعة.
+// ============================================================
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /chat-media/{convId}/{fileName} {
+
+      function isParticipant() {
+        return request.auth != null &&
+          convId.matches('^[0-9]+_[0-9]+$') &&
+          (convId.matches('^' + request.auth.uid + '_.*') ||
+           convId.matches('.*_' + request.auth.uid + '$'));
+      }
+
+      allow read: if isParticipant();
+
+      allow write: if isParticipant()
+        && request.resource.size < 100 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+            || request.resource.contentType.matches('video/.*'));
+    }
+  }
+}

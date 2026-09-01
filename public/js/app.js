@@ -493,6 +493,7 @@
     state.messages = [];
     state.pending.clear();
     state.cleanedIds = new Set();
+    resetMessageDom();
     state.otherReadAt = 0;
     state.otherTypingAt = 0;
     state.presence = null;
@@ -578,6 +579,7 @@
     state.activeId = null;
     state.messages = [];
     state.pending.clear();
+    resetMessageDom();
     el.chatView.hidden = true;
     setPane('list');
     renderChatList();
@@ -718,33 +720,109 @@
     return p;
   }
 
+  // تصليح "الشاشة بترقص": قبل كده renderMessages() كانت بتمسح كل الرسايل
+  // وتعيد بناءها من الصفر مع كل تحديث من Firebase — وده معناه إن أنيميشن
+  // ظهور كل رسالة (حتى القديمة اللي ظاهرة بالفعل) كانت بتتكرر تاني، وده
+  // اتفاقم لما بقينا بنمسح الرسايل من السيرفر أول ما توصل (كل رسالة
+  // بتوصل بتعمل تحديث، وكل مسح بيعمل تحديث تاني). دلوقتي بنحدّث بس
+  // اللي اتغيّر فعلاً (حالة القراءة، نسبة رفع الصورة...) ونسيب أي رسالة
+  // ظاهرة زي ما هي من غير ما نعيد بناءها.
+  const renderedNodes = new Map(); // key -> DOM node
+  let renderedKeys = [];
+
+  function timelineKey(item) {
+    if (item.kind === 'divider') return 'd:' + item.label;
+    const m = item.message;
+    return 'm:' + (m.pending ? 'p:' + m.cid : m.id);
+  }
+
+  function dividerNode(item) {
+    const d = document.createElement('div');
+    d.className = 'msg-day';
+    d.textContent = item.label;
+    return d;
+  }
+
+  function updateNode(node, item) {
+    if (item.kind === 'divider') return; // نص ثابت، مفيش تحديث لازم
+    const m = item.message;
+    if ((m.type === 'image' || m.type === 'video') && typeof m.uploadPct === 'number') {
+      const bar = node.querySelector('.msg-media-progress');
+      if (bar) bar.style.setProperty('--pct', m.uploadPct + '%');
+      else if (m.uploadPct >= 100) { /* هيتشال في المرة الجاية لو الرسالة اتغيرت فعلاً */ }
+    }
+    if (!item.mine) return;
+    const tick = node.querySelector('.msg-tick');
+    if (!tick) return;
+    const status = m.pending ? 'pending' : Fmt.messageStatus(m, state.otherReadAt);
+    const wantRead = status === 'read';
+    if (tick.classList.contains('is-read') !== wantRead) tick.classList.toggle('is-read', wantRead);
+    const wantText = status === 'pending' ? '···' : wantRead ? '✓✓' : '✓';
+    if (tick.textContent !== wantText) tick.textContent = wantText;
+    tick.title = status === 'pending' ? 'بيتبعت' : status === 'read' ? 'اتقرأت' : 'اتبعتت';
+  }
+
+  function resetMessageDom() {
+    el.messages.textContent = '';
+    renderedNodes.clear();
+    renderedKeys = [];
+  }
+
   function renderMessages(opts) {
     const o = opts || {};
     const box = el.messages;
     const stick = isNearBottom(box);
 
-    box.textContent = '';
-    if (o.loading) { box.appendChild(note('msg-empty', 'بيحمّل الرسايل…')); return; }
-    if (o.error) { box.appendChild(note('msg-error', o.error)); return; }
+    if (o.loading) { resetMessageDom(); box.appendChild(note('msg-empty', 'بيحمّل الرسايل…')); return; }
+    if (o.error) { resetMessageDom(); box.appendChild(note('msg-error', o.error)); return; }
 
     const pending = Array.from(state.pending.values());
     const all = state.messages.concat(pending);
 
+    const oldTyping = box.querySelector('.msg-typing-row');
+    if (oldTyping) oldTyping.remove();
+
     if (all.length === 0 && state.otherTypingAt <= Date.now() - TYPING_TTL) {
+      resetMessageDom();
       box.appendChild(note('msg-empty', 'مفيش رسايل لسه — ابعت أول رسالة'));
       return;
     }
+    if (box.querySelector('.msg-empty')) resetMessageDom();
 
-    Fmt.buildTimeline(all, myId()).forEach((item) => {
-      if (item.kind === 'divider') {
-        const d = document.createElement('div');
-        d.className = 'msg-day';
-        d.textContent = item.label;
-        box.appendChild(d);
-        return;
+    const timeline = Fmt.buildTimeline(all, myId());
+    const newKeys = [];
+    const seen = new Set();
+
+    timeline.forEach((item) => {
+      const key = timelineKey(item);
+      newKeys.push(key);
+      seen.add(key);
+      let node = renderedNodes.get(key);
+      if (node) updateNode(node, item);
+      else {
+        node = item.kind === 'divider' ? dividerNode(item) : bubble(item);
+        renderedNodes.set(key, node);
       }
-      box.appendChild(bubble(item));
     });
+
+    renderedKeys.forEach((k) => {
+      if (!seen.has(k)) {
+        const n = renderedNodes.get(k);
+        if (n && n.parentNode) n.remove();
+        renderedNodes.delete(k);
+      }
+    });
+
+    // ترتيب العناصر جوه الصندوق — إعادة ترتيب عنصر موجود بالفعل بـ insertBefore
+    // مابيعيدش أنيميشن الدخول بتاعته (المتصفح مابيعتبروش عنصر جديد)
+    let ref = box.firstChild;
+    if (ref && ref.classList && ref.classList.contains('msg-typing-row')) ref = ref.nextSibling;
+    newKeys.forEach((k) => {
+      const n = renderedNodes.get(k);
+      if (n !== ref) box.insertBefore(n, ref);
+      ref = n.nextSibling;
+    });
+    renderedKeys = newKeys;
 
     if (state.otherTypingAt > Date.now() - TYPING_TTL) box.appendChild(typingBubble());
     if (stick) box.scrollTop = box.scrollHeight;
@@ -823,7 +901,7 @@
 
   function typingBubble() {
     const div = document.createElement('div');
-    div.className = 'msg is-theirs starts-group ends-group';
+    div.className = 'msg is-theirs starts-group ends-group msg-typing-row';
     const dots = document.createElement('span');
     dots.className = 'typing-dots';
     dots.appendChild(document.createElement('i'));

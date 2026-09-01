@@ -1,10 +1,13 @@
 // public/sw.js
 // Service Worker بسيط ومقصود:
-//   - الملفات الثابتة: cache-first مع تحديث في الخلفية.
-//   - أي حاجة تحت /api/ أو Firebase: من النت دايمًا، ومفيش كاش خالص
-//     (رسايل وتوكنات ماينفعش تتكاش).
-//   - لو النت قاطع وفتحت التطبيق: بنرجّع index.html من الكاش.
-const VERSION = 'malg-v3';
+//   - كل حاجة: من النت الأول (network-first)، والكاش احتياطي بس لو النت مقطوع.
+//     ده أهم من سرعة الفتح شوية، عشان لما ننشر تحديث جديد على الموقع محدش
+//     يفضل شغال بنسخة قديمة من style.css أو app.js متزنقة مع HTML جديد
+//     (اللي بيسبب شكل تايه/متراكب ومقاسات غلط لحد ما يعمل Hard Refresh).
+//   - أي حاجة تحت /api/ أو Firebase: من النت دايمًا، ومفيش كاش خالص.
+//   - أول ما نسخة جديدة من الـ Service Worker تتفعّل، بنعمل رفرش تلقائي
+//     لأي تابات مفتوحة عشان محدش يحتاج يعمل حاجة يدوي.
+const VERSION = 'malg-v4';
 const SHELL = [
   '/',
   '/index.html',
@@ -34,6 +37,8 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then((clients) => clients.forEach((c) => { try { c.navigate(c.url); } catch (_) { /* بعض المتصفحات بترفض، مش مشكلة */ } }))
   );
 });
 
@@ -52,33 +57,21 @@ self.addEventListener('fetch', (event) => {
     return; // سيبها للمتصفح — من النت على طول
   }
 
-  // صفحات: من النت الأول، والكاش احتياطي لو مفيش نت
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(VERSION).then((c) => c.put('/index.html', copy)).catch(() => {});
-          return res;
-        })
-        .catch(() => caches.match('/index.html').then((r) => r || Response.error()))
-    );
-    return;
-  }
-
-  // ملفات: من الكاش الأول، وبنحدّثها في الخلفية
+  // network-first لكل حاجة: لو النت شغال بيجيب أحدث نسخة ويحدّث الكاش،
+  // ولو مقطوع بيرجع آخر نسخة متكاشة (أو index.html للصفحات).
   event.respondWith(
-    caches.match(request).then((hit) => {
-      const fresh = fetch(request)
-        .then((res) => {
-          if (res && res.ok) {
-            const copy = res.clone();
-            caches.open(VERSION).then((c) => c.put(request, copy)).catch(() => {});
-          }
-          return res;
-        })
-        .catch(() => hit || Response.error());
-      return hit || fresh;
-    })
+    fetch(request)
+      .then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(VERSION).then((c) => c.put(request, copy)).catch(() => {});
+        }
+        return res;
+      })
+      .catch(() => caches.match(request).then((hit) => {
+        if (hit) return hit;
+        if (request.mode === 'navigate') return caches.match('/index.html').then((r) => r || Response.error());
+        return Response.error();
+      }))
   );
 });

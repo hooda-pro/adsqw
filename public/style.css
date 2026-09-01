@@ -535,6 +535,11 @@ button.avatar:hover { transform: scale(1.05); }
   content: ""; display: block; height: 100%; width: var(--pct, 0%);
   background: var(--grad-gold); transition: width var(--dur-fast) linear;
 }
+.msg-media.is-broken {
+  display: grid; place-items: center; min-height: 90px; padding: var(--sp-4);
+  background: var(--surface-2); cursor: default;
+}
+.msg-media-error { color: var(--warn); font-size: var(--fs-sm); font-weight: 700; text-align: center; }
 .msg-caption { margin-top: 6px; padding: 0 5px; font-size: var(--fs-md); }
 
 .lightbox {

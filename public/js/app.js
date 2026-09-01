@@ -62,6 +62,7 @@
     activeId: null,
     messages: [],
     pending: new Map(), // cid -> رسالة مؤقتة لسه ما وصلتش
+    pendingLocalUrls: new Map(), // cid -> blob URL محلي للصورة/الفيديو، لحد ما نتأكد إن النسخة الحقيقية وصلت
     cleanedIds: new Set(), // آي-ديهات الرسايل اللي اتمسحت من Firebase بعد ما اتخزنت على الجهاز — عشان منحاولش تاني كل مرة
     otherReadAt: 0,
     otherTypingAt: 0,
@@ -72,7 +73,6 @@
   };
 
   let db = null;
-  let storage = null;
   const off = {}; // detach functions لكل listener
 
   function detach(key) {
@@ -312,7 +312,6 @@
     const data = await api('/api/firebase-token');
     await firebase.auth().signInWithCustomToken(data.firebaseToken);
     db = firebase.database();
-    storage = firebase.storage();
   }
 
   /** حضور حقيقي: online دلوقتي + offline أوتوماتيك لو النت قطع أو التاب اتقفل */
@@ -476,6 +475,13 @@
     };
   }
 
+  /** بتفضّي قائمة الرسايل المؤقتة وتسيب أي معاينة محلية (blob URL) من الذاكرة */
+  function clearPending() {
+    state.pending.clear();
+    state.pendingLocalUrls.forEach((u) => URL.revokeObjectURL(u));
+    state.pendingLocalUrls.clear();
+  }
+
   async function openChat(input) {
     if (!db) { toast('لسه بيتصل بسيرفر الرسايل — استنى شوية', 'warn'); return; }
 
@@ -491,7 +497,7 @@
     state.chats.set(otherId, chat);
     state.activeId = otherId;
     state.messages = [];
-    state.pending.clear();
+    clearPending();
     state.cleanedIds = new Set();
     resetMessageDom();
     state.otherReadAt = 0;
@@ -578,7 +584,7 @@
     clearMyTyping();
     state.activeId = null;
     state.messages = [];
-    state.pending.clear();
+    clearPending();
     resetMessageDom();
     el.chatView.hidden = true;
     setPane('list');
@@ -641,7 +647,12 @@
         live.forEach((m) => byId.set(m.id, m));
         state.messages = Array.from(byId.values()).sort((a, b) => (a.ts || 0) - (b.ts || 0));
 
-        live.forEach((m) => { if (m.cid) state.pending.delete(m.cid); });
+        live.forEach((m) => {
+          if (!m.cid) return;
+          state.pending.delete(m.cid);
+          const u = state.pendingLocalUrls.get(m.cid);
+          if (u) { URL.revokeObjectURL(u); state.pendingLocalUrls.delete(m.cid); }
+        });
         renderMessages();
         markRead();
 
@@ -845,6 +856,16 @@
       media.src = m.mediaUrl;
       if (m.type === 'video') { media.controls = true; media.playsInline = true; }
       else { media.loading = 'lazy'; media.alt = 'صورة'; }
+      // لو الملف فشل يوصل (مثلاً قواعد Firebase Storage مش متفعّلة) — نوريك
+      // رسالة واضحة بدل أيقونة "صورة مكسورة" غامضة محدش يعرف سببها
+      media.addEventListener('error', () => {
+        wrap.classList.add('is-broken');
+        wrap.textContent = '';
+        const warn = document.createElement('span');
+        warn.className = 'msg-media-error';
+        warn.textContent = m.type === 'video' ? '⚠️ الفيديو ماوصلش' : '⚠️ الصورة ماوصلتش';
+        wrap.appendChild(warn);
+      });
       wrap.appendChild(media);
 
       if (typeof m.uploadPct === 'number' && m.uploadPct < 100) {
@@ -854,7 +875,7 @@
         wrap.appendChild(bar);
       } else if (m.type === 'image') {
         wrap.style.cursor = 'zoom-in';
-        wrap.addEventListener('click', () => openLightbox(m.mediaUrl, false));
+        wrap.addEventListener('click', () => { if (!wrap.classList.contains('is-broken')) openLightbox(m.mediaUrl, false); });
       }
       div.appendChild(wrap);
 
@@ -980,9 +1001,37 @@
     if (file) sendMedia(file);
   });
 
+  /** رفع ملف على Cloudinary مع تتبّع نسبة التقدّم — بيرجّع Promise فيه رابط الملف النهائي */
+  function uploadToCloudinary(file, sign, onProgress) {
+    return new Promise((resolve, reject) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('api_key', sign.apiKey);
+      fd.append('timestamp', sign.timestamp);
+      fd.append('signature', sign.signature);
+      fd.append('folder', sign.folder);
+
+      const xhr = new XMLHttpRequest();
+      const isVideo = file.type.startsWith('video/');
+      xhr.open('POST', 'https://api.cloudinary.com/v1_1/' + sign.cloudName + '/' + (isVideo ? 'video' : 'image') + '/upload');
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable && onProgress) onProgress(Math.round((ev.loaded / ev.total) * 100));
+      };
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300 && data.secure_url) resolve(data);
+          else reject(Object.assign(new Error(data.error && data.error.message || 'رفع الملف فشل'), { data }));
+        } catch (e) { reject(e); }
+      };
+      xhr.onerror = () => reject(new Error('مفيش نت — رفع الملف فشل'));
+      xhr.send(fd);
+    });
+  }
+
   async function sendMedia(file) {
     const chat = state.chats.get(state.activeId);
-    if (!chat || !db || !storage) return;
+    if (!chat || !db) return;
 
     const isVideo = file.type.startsWith('video/');
     const isImage = file.type.startsWith('image/');
@@ -995,12 +1044,12 @@
     }
 
     const caption = el.composerInput.value.trim();
-    const placeholder = isVideo ? '🎥 فيديو' : '📷 صورة';
-    const text = caption || placeholder;
+    const text = caption || (isVideo ? '🎥 فيديو' : '📷 صورة');
     const type = isVideo ? 'video' : 'image';
 
     const cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const localUrl = URL.createObjectURL(file);
+    state.pendingLocalUrls.set(cid, localUrl);
     state.pending.set(cid, {
       id: cid, cid, senderId: myId(), text, ts: Date.now(), pending: true,
       type, mediaUrl: localUrl, uploadPct: 0,
@@ -1010,32 +1059,34 @@
     resetComposer();
     renderMessages();
 
-    const ext = (file.name.split('.').pop() || (isVideo ? 'mp4' : 'jpg')).toLowerCase();
-    const path = 'chat-media/' + chat.convId + '/' + cid + '.' + ext;
-    const ref = storage.ref().child(path);
-    const task = ref.put(file, { contentType: file.type });
-
-    task.on('state_changed', (snap) => {
-      const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-      const p = state.pending.get(cid);
-      if (p) { p.uploadPct = pct; renderMessages(); }
-    });
-
     try {
-      await task;
-      const mediaUrl = await ref.getDownloadURL();
+      // الخطوة 1: ناخد توقيع آمن من السيرفر بتاعنا (مش من غير ما نمر عليه —
+      // عشان الـ API Secret بتاع Cloudinary يفضل مخفي على السيرفر بس)
+      const sign = await api('/api/cloudinary-sign', { method: 'POST', body: { convId: chat.convId } });
+
+      // الخطوة 2: نرفع الملف على Cloudinary مباشرة من المتصفح، بالتوقيع ده
+      const uploaded = await uploadToCloudinary(file, sign, (pct) => {
+        const p = state.pending.get(cid);
+        if (p) { p.uploadPct = pct; renderMessages(); }
+      });
+
+      // الخطوة 3: نسجّل الرسالة في Firebase زي أي رسالة تانية، برابط الملف النهائي
       await db.ref(Paths.messages(chat.convId)).push({
-        senderId: myId(), text, ts: stamp(), cid, type, mediaUrl,
+        senderId: myId(), text, ts: stamp(), cid, type, mediaUrl: uploaded.secure_url,
       });
       await writeChatSummaries(chat, text);
+      // تصليح: كنا بنمسح المعاينة المحلية (blob URL) فورًا هنا، حتى لو
+      // النسخة الحقيقية لسه ما وصلتش لشاشتنا (خصوصًا مع نت بطيء) — فكانت
+      // الصورة بتتكسر لحظة قبل ما توصل النسخة الحقيقية. دلوقتي بنسيب
+      // المعاينة المحلية شغالة، وبنمسحها بس لما نتأكد إن الرسالة الحقيقية
+      // وصلت فعلاً (جوه listenMessages).
     } catch (err) {
-      console.error('media send failed:', err && err.code, err);
+      console.error('media send failed:', err);
       state.pending.delete(cid);
+      const u = state.pendingLocalUrls.get(cid);
+      if (u) { URL.revokeObjectURL(u); state.pendingLocalUrls.delete(cid); }
       renderMessages();
-      const denied = err && err.code === 'PERMISSION_DENIED' || (err && err.code === 'storage/unauthorized');
-      toast(denied ? 'الملف ماوصلش — تأكد إنك فعّلت Firebase Storage وحطيت قواعده' : 'الملف ماوصلش — حاول تاني', 'error');
-    } finally {
-      URL.revokeObjectURL(localUrl);
+      toast('الملف ماوصلش — حاول تاني', 'error');
     }
   }
 

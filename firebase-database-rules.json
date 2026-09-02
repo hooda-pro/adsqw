@@ -92,6 +92,10 @@
             ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
             ".validate": "newData.isString() && newData.val().length <= 24"
           },
+          "otherStatusText": {
+            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
           "isVerified": {
             ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
             ".validate": "newData.isBoolean()"

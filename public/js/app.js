@@ -402,6 +402,7 @@
       convId: r.convId || Paths.conversationId(myId(), otherId),
       otherName: r.otherName || 'مستخدم',
       otherPhone: r.otherPhone || '',
+      otherStatusText: r.otherStatusText || '',
       isVerified: !!r.isVerified,
       isOfficial: !!r.isOfficial,
       lastMessage: r.lastMessage || '',
@@ -532,6 +533,7 @@
       return {
         otherName: input.otherName || 'مستخدم',
         otherPhone: input.otherPhone || '',
+        otherStatusText: input.otherStatusText || '',
         isVerified: !!input.isVerified,
         isOfficial: !!input.isOfficial,
       };
@@ -539,6 +541,7 @@
     return {
       otherName: input.official_display_name || input.name || 'مستخدم',
       otherPhone: Phone.canonicalPhone(input.phone) || String(input.phone || ''),
+      otherStatusText: input.status_text || '',
       isVerified: !!input.is_verified,
       isOfficial: !!input.is_official,
     };
@@ -631,6 +634,7 @@
       convId: chat.convId,
       otherName: chat.otherName,
       otherPhone: chat.otherPhone,
+      otherStatusText: chat.otherStatusText || '',
       isVerified: !!chat.isVerified,
       isOfficial: !!chat.isOfficial,
     });
@@ -1241,6 +1245,7 @@
       convId: chat.convId,
       otherName: chat.otherName,
       otherPhone: chat.otherPhone,
+      otherStatusText: chat.otherStatusText || '',
       isVerified: !!chat.isVerified,
       isOfficial: !!chat.isOfficial,
       lastMessage: text,
@@ -1254,6 +1259,7 @@
       convId: chat.convId,
       otherName: state.me.official_display_name || state.me.name || 'مستخدم',
       otherPhone: Phone.canonicalPhone(state.me.phone) || String(state.me.phone || ''),
+      otherStatusText: state.me.status_text || '',
       isVerified: !!state.me.is_verified,
       isOfficial: !!state.me.is_official,
       lastMessage: text,
@@ -1683,7 +1689,7 @@
     // بناء البروفايل من البيانات الموجودة فوراً
     el.profileName.textContent = chat.otherName || '—';
     el.profilePhone.textContent = Phone.formatPhoneForDisplay(chat.otherPhone || '');
-    el.profileStatus.textContent = chat.status_text || '';
+    el.profileStatus.textContent = chat.otherStatusText || '';
     el.profileAvatar.textContent = Fmt.initials(chat.otherName);
     el.profileBody.innerHTML = '';
     addProfileRow('الهاتف', Phone.formatPhoneForDisplay(chat.otherPhone || ''));

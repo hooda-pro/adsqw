@@ -1351,6 +1351,12 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
   animation: menuIn .15s ease;
 }
 
+/* .msg-menu فيها display:flex ثابت، فلازم نلغيها صراحة لما [hidden]
+   موجود — زي .chat و .sheet-wrap تحت — وإلا هتفضل ظاهرة برغم إن
+   JS بيحط hidden = true عليها (نفس الأولوية في الـ CSS، وقاعدة
+   المؤلف بتكسب على قاعدة المتصفح الافتراضية). */
+.msg-menu[hidden] { display: none; }
+
 @keyframes menuIn {
   from { opacity: 0; transform: scale(.95); }
   to { opacity: 1; transform: none; }

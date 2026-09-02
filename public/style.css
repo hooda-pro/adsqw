@@ -741,6 +741,8 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .msg-day {
   align-self: center;
+  width: fit-content;
+  max-width: 90%;
   margin: 10px 0 8px;
   padding: 4px var(--sp-4);
   background: var(--surface-2);
@@ -1170,19 +1172,28 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
     display: grid;
     grid-template-columns: var(--side-w) minmax(0, 1fr);
     height: 100%;
+    overflow: hidden;
   }
 
+  /* إلغاء position:absolute من القاعدة العامة، وخليها عناصر grid عادية */
   .sidebar, .pane {
-    position: relative;
-    inset: auto;
+    position: relative !important;
+    inset: auto !important;
     transform: none !important;
-    transition: none;
+    transition: none !important;
+    z-index: auto !important;
   }
 
   .sidebar { border-inline-end: 1px solid var(--border); }
   .pane { background: var(--bg-2); }
 
+  /* على الكمبيوتر، الـ pane-idle يظهر لما مفيش شات مفتوح (data-pane="list") */
   body[data-pane="list"] .pane-idle { display: flex; }
+  body[data-pane="chat"] .pane-idle { display: none; }
+
+  /* لما شات مفتوح، نظهر الشات ونخفي الـ idle */
+  body[data-pane="chat"] #chatView { display: flex !important; }
+
   .back-btn { display: none; }
 
   /* زرار "+" يفضل ظاهر في الكمبيوتر عشان مفيش شاشة شات منفصلة */

@@ -162,6 +162,11 @@
           </button>
         </div>
 
+        <div class="blocked-bar" id="blockedBar" hidden>
+          <span>حظرت الشخص ده — مش هتقدروا تتبادلوا رسايل</span>
+          <button type="button" class="btn-link" id="blockedBarUnblock">إلغاء الحظر</button>
+        </div>
+
         <form class="composer" id="composerForm">
           <button type="button" class="icon-btn attach-btn" id="attachBtn" aria-label="إرفاق صورة">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.5V7a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v11a4 4 0 0 0 4 4h6"/><circle cx="9" cy="9" r="2"/><path d="M5 17l4.5-4.5a2 2 0 0 1 2.8 0L15 15"/><path d="M17 15v6M14 18h6"/></svg>
@@ -247,18 +252,22 @@
   </div>
 </div>
 
-<!-- ============ الإعدادات ============ -->
-<div class="sheet-wrap" id="settingsModal" hidden>
-  <div class="sheet-backdrop" data-close="settingsModal"></div>
-  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-    <div class="sheet-grip" aria-hidden="true"></div>
-    <header class="sheet-head">
-      <h2 id="settingsTitle">الإعدادات</h2>
-      <button class="icon-btn" type="button" data-close="settingsModal" aria-label="إغلاق">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
-    </header>
-    <div class="sheet-body">
+<!-- ============ الإعدادات — واجهة كاملة ============ -->
+<div class="settings-view" id="settingsView" hidden role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <header class="settings-head">
+    <button class="icon-btn" type="button" id="settingsBack" aria-label="رجوع">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+    </button>
+    <h2 id="settingsTitle">الإعدادات</h2>
+  </header>
+  <div class="settings-body">
+    <div class="settings-avatar-wrap">
+      <div class="settings-avatar" id="settingsAvatar"></div>
+      <p class="settings-avatar-sub" id="settingsPhonePreview" dir="ltr"></p>
+    </div>
+
+    <div class="settings-section">
+      <p class="settings-section-title">البيانات الشخصية</p>
       <form id="settingsForm" class="form" novalidate>
         <label class="field">
           <span>الاسم</span>
@@ -268,11 +277,29 @@
           <span>الحالة</span>
           <input type="text" id="settingsStatus" maxlength="80" placeholder="مثلاً: متاح للدردشة">
         </label>
-        <p class="field-note">رقم الموبايل بيتغير بشكل منفصل عشان محتاج تأكيد بكلمة السر.</p>
-        <button type="button" class="btn-link" id="settingsChangePhone">تغيير رقم الموبايل</button>
         <p class="form-error" id="settingsError" role="alert"></p>
         <button type="submit" class="btn btn-primary" id="settingsSaveBtn">حفظ التعديلات</button>
       </form>
+    </div>
+
+    <div class="settings-section">
+      <p class="settings-section-title">الحساب</p>
+      <button class="settings-row" type="button" id="settingsChangePhone">
+        <span class="settings-row-main">
+          <span>رقم الموبايل</span>
+          <strong id="settingsPhoneRow" dir="ltr">—</strong>
+        </span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+
+    <div class="settings-section">
+      <button class="settings-row is-danger" type="button" id="settingsLogout">
+        <span class="settings-row-main">
+          <strong>تسجيل خروج</strong>
+          <span>امسح الجلسة من هذا الجهاز</span>
+        </span>
+      </button>
     </div>
   </div>
 </div>

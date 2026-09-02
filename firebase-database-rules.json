@@ -72,6 +72,16 @@
       }
     },
 
+    "blocks": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$otherUid": {
+          ".validate": "newData.isBoolean() && newData.val() === true"
+        }
+      }
+    },
+
     "userConversations": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",

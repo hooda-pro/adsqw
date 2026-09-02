@@ -28,6 +28,8 @@
     userChats: (uid) => `userConversations/${uid}`,
     userChat: (uid, otherUid) => `userConversations/${uid}/${otherUid}`,
     presence: (uid) => `presence/${uid}`,
+    blocks: (uid) => `blocks/${uid}`,
+    blockedUser: (uid, otherUid) => `blocks/${uid}/${otherUid}`,
   };
 
   return paths;

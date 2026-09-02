@@ -59,13 +59,20 @@
     menuModal: $('menuModal'),
     menuSettings: $('menuSettings'),
     menuLogout: $('menuLogout'),
-    settingsModal: $('settingsModal'),
+    settingsView: $('settingsView'),
+    settingsBack: $('settingsBack'),
+    settingsAvatar: $('settingsAvatar'),
+    settingsPhonePreview: $('settingsPhonePreview'),
+    settingsPhoneRow: $('settingsPhoneRow'),
     settingsForm: $('settingsForm'),
     settingsName: $('settingsName'),
     settingsStatus: $('settingsStatus'),
     settingsError: $('settingsError'),
     settingsSaveBtn: $('settingsSaveBtn'),
     settingsChangePhone: $('settingsChangePhone'),
+    settingsLogout: $('settingsLogout'),
+    blockedBar: $('blockedBar'),
+    blockedBarUnblock: $('blockedBarUnblock'),
     changePhoneModal: $('changePhoneModal'),
     changePhoneForm: $('changePhoneForm'),
     newPhone: $('newPhone'),
@@ -207,6 +214,7 @@
     if (ev.key !== 'Escape') return;
     if (!el.newChatModal.hidden) { closeSheet('newChatModal'); return; }
     if (!el.forgotModal.hidden) { closeSheet('forgotModal'); return; }
+    if (!el.settingsView.hidden) { closeSettings(); return; }
     if (state.activeId && !matchMedia('(min-width: 900px)').matches) closeChat();
   });
 
@@ -358,6 +366,41 @@
 
     trackMyPresence();
     listenChatList();
+    listenBlocks();
+  }
+
+  /** قائمة اللي حظرتهم — مخزّنة في Firebase تحت blocks/<uid>، عشان تفضل
+   * متزامنة على كل أجهزتك ومتحفظة بعد ما تسجّل خروج وتدخل تاني (قبل كده
+   * كانت Set محلية بس في الذاكرة، بتتصفّر أول ما تعمل refresh). */
+  function listenBlocks() {
+    detach('blocks');
+    const ref = db.ref(Paths.blocks(myId()));
+    const cb = ref.on(
+      'value',
+      (snap) => {
+        const data = snap.val() || {};
+        state.blockedIds = new Set(Object.keys(data));
+        paintBlockedState();
+        if (!el.profileModal.hidden && state.activeId) {
+          const chat = state.chats.get(state.activeId);
+          if (chat) {
+            const isBlocked = state.blockedIds.has(chat.id);
+            el.profileBlock.classList.toggle('is-blocked', isBlocked);
+            el.profileBlockLabel.textContent = isBlocked ? 'إلغاء الحظر' : 'حظر';
+          }
+        }
+      },
+      (err) => console.warn('blocks listener failed', err && err.code)
+    );
+    off.blocks = () => ref.off('value', cb);
+  }
+
+  /** بتوضّح/تخفي شريط "محظور" مكان خانة الكتابة على حسب الدردشة المفتوحة */
+  function paintBlockedState() {
+    if (!state.activeId) return;
+    const isBlocked = state.blockedIds.has(state.activeId);
+    el.blockedBar.hidden = !isBlocked;
+    el.composerForm.hidden = isBlocked;
   }
 
   function paintMe() {
@@ -648,6 +691,7 @@
     el.chatName.appendChild(document.createTextNode(chat.otherName));
     if (chat.isVerified) el.chatName.appendChild(svgIcon('verified', CHECK_PATH));
     paintStatus();
+    paintBlockedState();
   }
 
   function paintStatus() {
@@ -1083,6 +1127,7 @@
     const chat = state.chats.get(state.activeId);
     const text = el.composerInput.value.trim();
     if (!chat || !text || !db) return;
+    if (state.blockedIds.has(chat.id)) { toast('حظرت الشخص ده — لازم تلغي الحظر الأول', 'warn'); return; }
 
     const cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -1129,6 +1174,7 @@
   // ============================================================
   el.attachBtn.addEventListener('click', () => {
     if (!state.activeId) return;
+    if (state.blockedIds.has(state.activeId)) { toast('حظرت الشخص ده — لازم تلغي الحظر الأول', 'warn'); return; }
     el.mediaInput.value = '';
     el.mediaInput.click();
   });
@@ -1183,6 +1229,7 @@
   async function sendMedia(file) {
     const chat = state.chats.get(state.activeId);
     if (!chat || !db) return;
+    if (state.blockedIds.has(chat.id)) { toast('حظرت الشخص ده — لازم تلغي الحظر الأول', 'warn'); return; }
 
     const isImage = file.type.startsWith('image/');
     if (!isImage) { toast('حاليًا تقدر تبعت صور بس (الفيديو لسه مش متاح)', 'error'); return; }
@@ -1621,7 +1668,34 @@
     el.settingsName.value = state.me.name || '';
     el.settingsStatus.value = state.me.status_text || '';
     el.settingsError.textContent = '';
-    el.settingsModal.hidden = false;
+    el.settingsAvatar.textContent = Fmt.initials(state.me.name);
+    const phoneDisplay = Phone.formatPhoneForDisplay(state.me.phone || '');
+    el.settingsPhonePreview.textContent = phoneDisplay;
+    el.settingsPhoneRow.textContent = phoneDisplay;
+    el.settingsView.hidden = false;
+  }
+
+  function closeSettings() {
+    el.settingsView.hidden = true;
+  }
+
+  el.settingsBack.addEventListener('click', closeSettings);
+
+  el.settingsLogout.addEventListener('click', () => {
+    showConfirm('متأكد إنك عايز تسجّل خروج؟\nهيتمسح كاش الرسايل من على الجهاز ده.', doLogout);
+  });
+
+  /** بعد ما تغيّر اسمك أو حالتك، لازم ننشر التحديث في نسخة كل شخص
+   * عنده دردشة معاك — عشان لما يفتح تفاصيلك يشوف آخر حالة، مش نسخة
+   * قديمة اتخزنت أول ما بدأتوا تتكلموا. قواعد الأمان بتسمح لأي طرف
+   * يحدّث نسخة نفسه عند التاني (auth.uid === $otherUid). */
+  function broadcastIdentityToChats(patch) {
+    if (!db) return;
+    const me = myId();
+    state.chats.forEach((chat, otherId) => {
+      db.ref(Paths.userChat(otherId, me)).update(patch)
+        .catch((err) => console.warn('identity broadcast failed', otherId, err && err.code));
+    });
   }
 
   el.settingsForm.addEventListener('submit', async (ev) => {
@@ -1639,7 +1713,11 @@
       // بنحدّث state.me + الـ header
       Object.assign(state.me, data.user);
       paintMe();
-      el.settingsModal.hidden = true;
+      broadcastIdentityToChats({
+        otherName: state.me.official_display_name || state.me.name || 'مستخدم',
+        otherStatusText: state.me.status_text || '',
+      });
+      closeSettings();
       toast('اتحفظ ✓');
     } catch (err) {
       el.settingsError.textContent = err.message || 'حصل خطأ، حاول تاني';
@@ -1649,7 +1727,6 @@
   });
 
   el.settingsChangePhone.addEventListener('click', () => {
-    el.settingsModal.hidden = true;
     el.changePhoneModal.hidden = false;
     el.newPhone.value = '';
     el.phonePassword.value = '';
@@ -1670,6 +1747,12 @@
       });
       Object.assign(state.me, data.user);
       paintMe();
+      const phoneDisplay = Phone.formatPhoneForDisplay(state.me.phone || '');
+      el.settingsPhonePreview.textContent = phoneDisplay;
+      el.settingsPhoneRow.textContent = phoneDisplay;
+      broadcastIdentityToChats({
+        otherPhone: Phone.canonicalPhone(state.me.phone) || String(state.me.phone || ''),
+      });
       el.changePhoneModal.hidden = true;
       toast('الرقم اتغير ✓');
     } catch (err) {
@@ -1708,19 +1791,37 @@
     if (state.activeId) openOtherProfile();
   });
 
+  /** بتحظر/تفك حظر شخص فعليًا في Firebase تحت blocks/<uid>/<otherUid>،
+   * عشان الحالة تفضل متسجّلة (مش بس في الذاكرة) وتتفعّل فورًا على خانة
+   * الكتابة عن طريق سماعة listenBlocks. */
+  function toggleBlock(otherId, otherName, isBlocked) {
+    if (!db) { toast('لسه بيتصل بسيرفر الرسايل — استنى شوية', 'warn'); return; }
+    showConfirm(
+      isBlocked ? 'إلغاء حظر ' + otherName + '؟' : 'حظر ' + otherName + '؟\nمش هتقدروا تتبادلوا رسايل.',
+      async () => {
+        try {
+          if (isBlocked) await db.ref(Paths.blockedUser(myId(), otherId)).remove();
+          else await db.ref(Paths.blockedUser(myId(), otherId)).set(true);
+          el.profileModal.hidden = true;
+          toast(isBlocked ? 'اترفع الحظر ✓' : 'اتحظر ✓');
+        } catch (err) {
+          console.error('block toggle failed', err && err.code);
+          toast('العملية ماتمتش — حاول تاني', 'error');
+        }
+      }
+    );
+  }
+
   el.profileBlock.addEventListener('click', () => {
     const chat = state.chats.get(state.activeId);
     if (!chat) return;
-    const isBlocked = state.blockedIds.has(chat.id);
-    showConfirm(
-      isBlocked ? 'إلغاء حظر ' + chat.otherName + '؟' : 'حظر ' + chat.otherName + '؟\nمش هتقدر تتبادلوا رسايل.',
-      () => {
-        if (isBlocked) state.blockedIds.delete(chat.id);
-        else state.blockedIds.add(chat.id);
-        el.profileModal.hidden = true;
-        toast(isBlocked ? 'اترفع الحظر ✓' : 'اتحظر ✓');
-      }
-    );
+    toggleBlock(chat.id, chat.otherName, state.blockedIds.has(chat.id));
+  });
+
+  el.blockedBarUnblock.addEventListener('click', () => {
+    const chat = state.chats.get(state.activeId);
+    if (!chat) return;
+    toggleBlock(chat.id, chat.otherName, true);
   });
 
   // ============================================================

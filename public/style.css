@@ -1263,6 +1263,11 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
   animation: replyIn .2s ease;
 }
 
+/* لازم نلغي display:flex صراحة لما [hidden] موجود، وإلا شريط الرد
+   هيفضل ظاهر طول الوقت حتى لو مش بترد على حاجة (الـ hidden مش بيكفي
+   لوحده لما فيه display ثابت في القاعدة فوق). */
+.reply-bar[hidden] { display: none; }
+
 @keyframes replyIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
@@ -1711,6 +1716,7 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 .chat > .messages { flex: 1; min-height: 0; }
 .chat > .composer { flex: 0 0 auto; }
 .chat > .reply-bar { flex: 0 0 auto; }
+.chat > .blocked-bar { flex: 0 0 auto; }
 
 /* ==========================================================
    26) رسالة محذوفة للجميع
@@ -1734,4 +1740,155 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
    ========================================================== */
 .profile-sheet {
   color: var(--text);
+}
+/* ==========================================================
+   28) صفحة الإعدادات — واجهة كاملة (مش مودال صغير)
+   ========================================================== */
+.settings-view {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  animation: settingsIn .22s ease;
+}
+
+.settings-view[hidden] { display: none; }
+
+@keyframes settingsIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: var(--head-h);
+  flex: 0 0 var(--head-h);
+  padding: 0 var(--sp-4);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 800;
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0 calc(var(--sp-8) + env(safe-area-inset-bottom));
+}
+
+.settings-avatar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-7) var(--sp-5) var(--sp-6);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: #fff;
+}
+
+.settings-avatar {
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .2);
+  color: #fff;
+  font-size: 34px;
+  font-weight: 800;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, .15);
+}
+
+.settings-avatar-sub {
+  margin: 0;
+  font-size: var(--fs-sm);
+  opacity: .85;
+}
+
+.settings-section {
+  padding: var(--sp-5);
+  border-bottom: 8px solid var(--bg-2);
+}
+
+.settings-section-title {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--text-faint);
+  letter-spacing: .02em;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: 14px var(--sp-3);
+  background: none;
+  border: 0;
+  border-radius: var(--r-md);
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  transition: background .12s ease;
+}
+
+.settings-row:hover { background: var(--surface-2); }
+
+.settings-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-row-main span { font-size: var(--fs-xs); color: var(--text-dim); }
+.settings-row-main strong { font-size: var(--fs-base); font-weight: 700; }
+
+.settings-row svg { color: var(--text-faint); flex: 0 0 20px; }
+
+.settings-row.is-danger { color: var(--danger); }
+.settings-row.is-danger .settings-row-main strong { color: var(--danger); }
+
+/* ==========================================================
+   29) شريط "محظور" اللي بيحل محل خانة الكتابة
+   ========================================================== */
+.blocked-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.blocked-bar[hidden] { display: none; }
+
+.blocked-bar span {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.blocked-bar button {
+  flex: 0 0 auto;
+}
+
+@media (min-width: 700px) {
+  .settings-body { display: flex; flex-direction: column; align-items: center; }
+  .settings-avatar-wrap,
+  .settings-section { width: 100%; max-width: 560px; }
 }

@@ -17,7 +17,6 @@
   const Store = window.MalgStore;
 
   const MAX_IMAGE_MB = 15;
-  const MAX_VIDEO_MB = 100;
 
   const TOKEN_KEY = 'malg_token';
   const SUPPORT_WHATSAPP = '201065749774';
@@ -1001,65 +1000,70 @@
     if (file) sendMedia(file);
   });
 
-  /** رفع ملف على Cloudinary مع تتبّع نسبة التقدّم — بيرجّع Promise فيه رابط الملف النهائي */
-  /** رفع ملف على Cloudinary (Unsigned Upload) — من غير أي حاجة تتظبط على
-   * Vercel خالص، بس اسم الحساب واسم الـ Upload Preset (من ملف الإعدادات).
-   * بيرجّع Promise فيه رابط الملف النهائي، وبيبلّغ عن نسبة الرفع أول بأول */
-  function uploadToCloudinary(file, folder, onProgress) {
+  const MAX_MEDIA_CHARS = 480000; // حد أقصى تقريبي لطول الصورة كنص (base64) — عشان تفضل معقولة جوه Firebase
+
+  /** بتصغّر الصورة وتضغطها في المتصفح نفسه (Canvas)، وترجّعها كنص base64
+   * جاهز يتخزن مباشرة في Firebase — من غير أي رفع لأي خدمة تانية خالص */
+  function compressImageToDataUrl(file, maxDim, quality) {
     return new Promise((resolve, reject) => {
-      const cfg = window.CLOUDINARY_CONFIG;
-      if (!cfg || !cfg.cloudName || !cfg.uploadPreset) {
-        reject(new Error('إعدادات Cloudinary مش موجودة — تأكد من ملف cloudinary-client-config.js'));
-        return;
-      }
-
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('upload_preset', cfg.uploadPreset);
-      fd.append('folder', folder);
-
-      const xhr = new XMLHttpRequest();
-      const isVideo = file.type.startsWith('video/');
-      xhr.open('POST', 'https://api.cloudinary.com/v1_1/' + cfg.cloudName + '/' + (isVideo ? 'video' : 'image') + '/upload');
-      xhr.upload.onprogress = (ev) => {
-        if (ev.lengthComputable && onProgress) onProgress(Math.round((ev.loaded / ev.total) * 100));
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('مش قادر أقرأ الملف'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('الملف مش صورة سليمة'));
+        img.onload = () => {
+          let w = img.naturalWidth, h = img.naturalHeight;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+            else { w = Math.round((w * maxDim) / h); h = maxDim; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = reader.result;
       };
-      xhr.onload = () => {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          if (xhr.status >= 200 && xhr.status < 300 && data.secure_url) resolve(data);
-          else reject(Object.assign(new Error((data.error && data.error.message) || 'رفع الملف فشل (كود ' + xhr.status + ')'), { data }));
-        } catch (e) { reject(e); }
-      };
-      xhr.onerror = () => reject(new Error('مفيش نت — رفع الملف فشل'));
-      xhr.send(fd);
+      reader.readAsDataURL(file);
     });
+  }
+
+  /** بتحاول تضغط الصورة بجودة أعلى الأول، ولو لسه كبيرة بتقلّل تدريجيًا
+   * لحد ما تدخل في الحد المسموح به */
+  async function compressImageUnderLimit(file) {
+    const attempts = [
+      [1280, 0.72], [1024, 0.65], [800, 0.6], [640, 0.55],
+    ];
+    let last = null;
+    for (const [dim, q] of attempts) {
+      last = await compressImageToDataUrl(file, dim, q);
+      if (last.length <= MAX_MEDIA_CHARS) return last;
+    }
+    throw new Error('الصورة كبيرة أوي حتى بعد الضغط — جرّب صورة تانية أصغر');
   }
 
   async function sendMedia(file) {
     const chat = state.chats.get(state.activeId);
     if (!chat || !db) return;
 
-    const isVideo = file.type.startsWith('video/');
     const isImage = file.type.startsWith('image/');
-    if (!isImage && !isVideo) { toast('الملف ده لازم يكون صورة أو فيديو', 'error'); return; }
+    if (!isImage) { toast('حاليًا تقدر تبعت صور بس (الفيديو لسه مش متاح)', 'error'); return; }
 
-    const maxMb = isVideo ? MAX_VIDEO_MB : MAX_IMAGE_MB;
-    if (file.size > maxMb * 1024 * 1024) {
-      toast('الملف كبير أوي — الحد الأقصى ' + maxMb + ' ميجا', 'error');
+    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+      toast('الصورة كبيرة أوي — الحد الأقصى ' + MAX_IMAGE_MB + ' ميجا', 'error');
       return;
     }
 
     const caption = el.composerInput.value.trim();
-    const text = caption || (isVideo ? '🎥 فيديو' : '📷 صورة');
-    const type = isVideo ? 'video' : 'image';
+    const text = caption || '📷 صورة';
+    const type = 'image';
 
     const cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const localUrl = URL.createObjectURL(file);
     state.pendingLocalUrls.set(cid, localUrl);
     state.pending.set(cid, {
       id: cid, cid, senderId: myId(), text, ts: Date.now(), pending: true,
-      type, mediaUrl: localUrl, uploadPct: 0,
+      type, mediaUrl: localUrl,
     });
 
     el.composerInput.value = '';
@@ -1067,33 +1071,26 @@
     renderMessages();
 
     try {
-      // نرفع الملف على Cloudinary مباشرة من المتصفح — مفيش أي خطوة على
-      // السيرفر بتاعنا خالص، بس اسم الحساب واسم الـ Upload Preset
-      const uploaded = await uploadToCloudinary(file, 'chat-media/' + chat.convId, (pct) => {
-        const p = state.pending.get(cid);
-        if (p) { p.uploadPct = pct; renderMessages(); }
-      });
-
-      // نسجّل الرسالة في Firebase زي أي رسالة تانية، برابط الملف النهائي
+      // بنضغط الصورة في المتصفح نفسه، وبنخزّنها كنص جوه Firebase مباشرة —
+      // مفيش خدمة تخزين خارجية خالص، بس نفس Firebase اللي الرسايل شغالة بيه
+      const dataUrl = await compressImageUnderLimit(file);
       await db.ref(Paths.messages(chat.convId)).push({
-        senderId: myId(), text, ts: stamp(), cid, type, mediaUrl: uploaded.secure_url,
+        senderId: myId(), text, ts: stamp(), cid, type, mediaUrl: dataUrl,
       });
       await writeChatSummaries(chat, text);
       // تصليح: كنا بنمسح المعاينة المحلية (blob URL) فورًا هنا، حتى لو
-      // النسخة الحقيقية لسه ما وصلتش لشاشتنا (خصوصًا مع نت بطيء) — فكانت
-      // الصورة بتتكسر لحظة قبل ما توصل النسخة الحقيقية. دلوقتي بنسيب
-      // المعاينة المحلية شغالة، وبنمسحها بس لما نتأكد إن الرسالة الحقيقية
-      // وصلت فعلاً (جوه listenMessages).
+      // النسخة الحقيقية لسه ما وصلتش لشاشتنا — فكانت الصورة بتتكسر لحظة
+      // قبل ما توصل النسخة الحقيقية. دلوقتي بنسيب المعاينة المحلية شغالة،
+      // وبنمسحها بس لما نتأكد إن الرسالة الحقيقية وصلت فعلاً (جوه listenMessages).
     } catch (err) {
       console.error('media send failed:', err);
       state.pending.delete(cid);
       const u = state.pendingLocalUrls.get(cid);
       if (u) { URL.revokeObjectURL(u); state.pendingLocalUrls.delete(cid); }
       renderMessages();
-      // بنوري رسالة الخطأ الحقيقية على الشاشة عشان تعرف السبب بالظبط من
-      // غير ما تحتاج تفتح أدوات المطوّر في المتصفح خالص
       const detail = (err && err.message) ? String(err.message).slice(0, 160) : '';
-      toast(detail ? ('الملف ماوصلش: ' + detail) : 'الملف ماوصلش — حاول تاني', 'error');
+      const denied = err && err.code === 'PERMISSION_DENIED';
+      toast(denied ? 'الصورة ماوصلتش — راجع قواعد الأمان في Firebase' : (detail ? ('الصورة ماوصلتش: ' + detail) : 'الصورة ماوصلتش — حاول تاني'), 'error');
     }
   }
 

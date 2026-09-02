@@ -47,7 +47,7 @@
               ".validate": "newData.isString() && (newData.val() === 'image' || newData.val() === 'video')"
             },
             "mediaUrl": {
-              ".validate": "newData.isString() && newData.val().length <= 700"
+              ".validate": "newData.isString() && newData.val().length <= 500000"
             },
             "$other": { ".validate": false }
           }

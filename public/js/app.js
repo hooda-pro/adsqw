@@ -1464,15 +1464,21 @@
     menu.style.top = ny + 'px';
 
     // نقفل لما ندوس في أي مكان تاني
+    // ملحوظة: على الموبايل، لمسة على عنصر <div> عادي (زي فقاعة الرسالة
+    // أو مساحة فاضية) ممكن متطلعش حدث "click" أصلاً لو مفيهوش cursor:pointer
+    // (سلوك معروف في Safari على iOS) — فكنا بنسيب المنيو عالقة على الشاشة.
+    // عشان كده لازم نستمع لـ touchstart كمان مش بس click.
     setTimeout(() => {
       const close = (ev) => {
         if (!menu.contains(ev.target)) {
           menu.hidden = true;
           document.removeEventListener('click', close, true);
+          document.removeEventListener('touchstart', close, true);
           document.removeEventListener('contextmenu', close, true);
         }
       };
       document.addEventListener('click', close, true);
+      document.addEventListener('touchstart', close, true);
       document.addEventListener('contextmenu', close, true);
     }, 0);
   }

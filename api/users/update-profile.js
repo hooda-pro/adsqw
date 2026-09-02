@@ -16,32 +16,52 @@ module.exports = async (req, res) => {
     }
 
     const { name, status_text } = req.body || {};
-    const updates = [];
 
+    let newName = null;
     if (typeof name === 'string') {
-      const trimmed = name.trim();
-      if (trimmed.length < 2) {
+      newName = name.trim();
+      if (newName.length < 2) {
         return res.status(400).json({ error: 'الاسم لازم يكون حرفين على الأقل' });
       }
-      updates.push(sql`name = ${trimmed}`);
     }
 
+    let newStatus = null;
     if (typeof status_text === 'string') {
-      const trimmed = status_text.trim().slice(0, 80);
-      updates.push(sql`status_text = ${trimmed}`);
+      newStatus = status_text.trim().slice(0, 80);
     }
 
-    if (updates.length === 0) {
+    if (newName === null && newStatus === null) {
       return res.status(400).json({ error: 'مفيش حاجات تتغير' });
     }
 
-    // بنبني الاستعلام بطريقة آمنة (تجنب SQL injection)
-    const result = await sql`
-      UPDATE users
-      SET ${sql(updates.reduce((acc, u, i) => i === 0 ? u : sql`${acc}, ${u}`))}
-      WHERE id = ${user.id}
-      RETURNING id, phone, name, avatar_url, status_text, is_verified, is_official
-    `;
+    // @vercel/postgres's `sql` only works as a tagged template — it can't be
+    // called as a function or have query fragments composed dynamically.
+    // So instead of building the SET clause piece-by-piece, we branch over
+    // the (small, known) set of update combinations, each as its own
+    // plain tagged-template query.
+    let result;
+    if (newName !== null && newStatus !== null) {
+      result = await sql`
+        UPDATE users
+        SET name = ${newName}, status_text = ${newStatus}
+        WHERE id = ${user.id}
+        RETURNING id, phone, name, avatar_url, status_text, is_verified, is_official
+      `;
+    } else if (newName !== null) {
+      result = await sql`
+        UPDATE users
+        SET name = ${newName}
+        WHERE id = ${user.id}
+        RETURNING id, phone, name, avatar_url, status_text, is_verified, is_official
+      `;
+    } else {
+      result = await sql`
+        UPDATE users
+        SET status_text = ${newStatus}
+        WHERE id = ${user.id}
+        RETURNING id, phone, name, avatar_url, status_text, is_verified, is_official
+      `;
+    }
 
     return res.status(200).json({ user: result.rows[0] });
   } catch (err) {

@@ -9,8 +9,8 @@
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
-  "background_color": "#06070c",
-  "theme_color": "#06070c",
+  "background_color": "#f3f5fa",
+  "theme_color": "#ffffff",
   "orientation": "any",
   "categories": ["social", "communication"],
   "icons": [

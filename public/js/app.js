@@ -1002,18 +1002,25 @@
   });
 
   /** رفع ملف على Cloudinary مع تتبّع نسبة التقدّم — بيرجّع Promise فيه رابط الملف النهائي */
-  function uploadToCloudinary(file, sign, onProgress) {
+  /** رفع ملف على Cloudinary (Unsigned Upload) — من غير أي حاجة تتظبط على
+   * Vercel خالص، بس اسم الحساب واسم الـ Upload Preset (من ملف الإعدادات).
+   * بيرجّع Promise فيه رابط الملف النهائي، وبيبلّغ عن نسبة الرفع أول بأول */
+  function uploadToCloudinary(file, folder, onProgress) {
     return new Promise((resolve, reject) => {
+      const cfg = window.CLOUDINARY_CONFIG;
+      if (!cfg || !cfg.cloudName || !cfg.uploadPreset) {
+        reject(new Error('إعدادات Cloudinary مش موجودة — تأكد من ملف cloudinary-client-config.js'));
+        return;
+      }
+
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('api_key', sign.apiKey);
-      fd.append('timestamp', sign.timestamp);
-      fd.append('signature', sign.signature);
-      fd.append('folder', sign.folder);
+      fd.append('upload_preset', cfg.uploadPreset);
+      fd.append('folder', folder);
 
       const xhr = new XMLHttpRequest();
       const isVideo = file.type.startsWith('video/');
-      xhr.open('POST', 'https://api.cloudinary.com/v1_1/' + sign.cloudName + '/' + (isVideo ? 'video' : 'image') + '/upload');
+      xhr.open('POST', 'https://api.cloudinary.com/v1_1/' + cfg.cloudName + '/' + (isVideo ? 'video' : 'image') + '/upload');
       xhr.upload.onprogress = (ev) => {
         if (ev.lengthComputable && onProgress) onProgress(Math.round((ev.loaded / ev.total) * 100));
       };
@@ -1021,7 +1028,7 @@
         try {
           const data = JSON.parse(xhr.responseText);
           if (xhr.status >= 200 && xhr.status < 300 && data.secure_url) resolve(data);
-          else reject(Object.assign(new Error(data.error && data.error.message || 'رفع الملف فشل'), { data }));
+          else reject(Object.assign(new Error((data.error && data.error.message) || 'رفع الملف فشل (كود ' + xhr.status + ')'), { data }));
         } catch (e) { reject(e); }
       };
       xhr.onerror = () => reject(new Error('مفيش نت — رفع الملف فشل'));
@@ -1060,17 +1067,14 @@
     renderMessages();
 
     try {
-      // الخطوة 1: ناخد توقيع آمن من السيرفر بتاعنا (مش من غير ما نمر عليه —
-      // عشان الـ API Secret بتاع Cloudinary يفضل مخفي على السيرفر بس)
-      const sign = await api('/api/cloudinary-sign', { method: 'POST', body: { convId: chat.convId } });
-
-      // الخطوة 2: نرفع الملف على Cloudinary مباشرة من المتصفح، بالتوقيع ده
-      const uploaded = await uploadToCloudinary(file, sign, (pct) => {
+      // نرفع الملف على Cloudinary مباشرة من المتصفح — مفيش أي خطوة على
+      // السيرفر بتاعنا خالص، بس اسم الحساب واسم الـ Upload Preset
+      const uploaded = await uploadToCloudinary(file, 'chat-media/' + chat.convId, (pct) => {
         const p = state.pending.get(cid);
         if (p) { p.uploadPct = pct; renderMessages(); }
       });
 
-      // الخطوة 3: نسجّل الرسالة في Firebase زي أي رسالة تانية، برابط الملف النهائي
+      // نسجّل الرسالة في Firebase زي أي رسالة تانية، برابط الملف النهائي
       await db.ref(Paths.messages(chat.convId)).push({
         senderId: myId(), text, ts: stamp(), cid, type, mediaUrl: uploaded.secure_url,
       });

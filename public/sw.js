@@ -18,6 +18,7 @@ const SHELL = [
   '/js/store.js',
   '/js/app.js',
   '/firebase-client-config.js',
+  '/cloudinary-client-config.js',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

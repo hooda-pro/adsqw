@@ -1134,12 +1134,18 @@
   }
 
   // ============================================================
-  // خانة الكتابة — بتكبر لتحت، ومش بتتمدّ على الجناب
+  // خانة الكتابة — بتكبر لتحت، ومش بتتمدّ على الجناب.
+  // شريط التمرير بيظهر بس لما النص يوصل للحد الأعلى عشان مايبقاش
+  // شكله وحش على الرسايل القصيرة.
   // ============================================================
   function resetComposer() {
     const t = el.composerInput;
     t.style.height = 'auto';
-    t.style.height = Math.min(t.scrollHeight, MAX_COMPOSER_H) + 'px';
+    const h = Math.min(t.scrollHeight, MAX_COMPOSER_H);
+    t.style.height = h + 'px';
+    // لو المحتوى تعدى الحد، فعّل السكرول. لو قصير، اخفِه.
+    if (t.scrollHeight > MAX_COMPOSER_H) t.classList.add('is-scrollable');
+    else t.classList.remove('is-scrollable');
     el.sendBtn.disabled = t.value.trim().length === 0;
   }
 

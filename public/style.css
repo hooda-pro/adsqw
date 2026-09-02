@@ -486,7 +486,7 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 .chat-list {
   flex: 1;
   margin: 0;
-  padding: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) 80px;
   list-style: none;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -630,7 +630,7 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* ---------- 10) زر الدردشة الجديدة (FAB) ---------- */
 .fab {
-  position: absolute;
+  position: fixed;
   inset-block-end: max(20px, calc(env(safe-area-inset-bottom) + 12px));
   inset-inline-start: 20px;
   display: grid;
@@ -644,6 +644,8 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
   cursor: pointer;
   box-shadow: var(--shadow-md);
   transition: transform .15s ease, opacity .2s ease;
+  z-index: 40;
+  flex-shrink: 0;
   z-index: 1;
 }
 

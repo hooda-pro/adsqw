@@ -57,7 +57,6 @@
     // hamburger + modals
     menuBtn: $('menuBtn'),
     menuModal: $('menuModal'),
-    menuProfile: $('menuProfile'),
     menuSettings: $('menuSettings'),
     menuLogout: $('menuLogout'),
     settingsModal: $('settingsModal'),
@@ -515,7 +514,11 @@
     btn.appendChild(avatar);
     btn.appendChild(main);
     btn.appendChild(side);
-    btn.addEventListener('click', () => openChat(chat));
+    btn.addEventListener('click', (ev) => {
+      // بنمنع الـ event من إنه يتقاطع مع الـ backdrop بتاع أي مودال مفتوح
+      ev.stopPropagation();
+      openChat(chat);
+    });
     li.appendChild(btn);
     return li;
   }
@@ -1549,15 +1552,10 @@
   });
 
   // ============================================================
-  // 4) القائمة الهامبرغر (3 شرط) — حسابي، إعدادات، خروج
+  // 4) القائمة الهامبرغر — إعدادات + تسجيل خروج
   // ============================================================
   el.menuBtn.addEventListener('click', () => {
     el.menuModal.hidden = false;
-  });
-
-  el.menuProfile.addEventListener('click', () => {
-    el.menuModal.hidden = true;
-    openMyProfile();
   });
 
   el.menuSettings.addEventListener('click', () => {

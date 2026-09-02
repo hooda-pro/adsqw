@@ -134,7 +134,7 @@
   }
 
   function detachChatListeners() {
-    ['messages', 'typing', 'reads', 'presence'].forEach(detach);
+    ['messages', 'deletedMessages', 'typing', 'reads', 'presence'].forEach(detach);
   }
 
   const myId = () => (state.me ? String(state.me.id) : '');
@@ -653,6 +653,7 @@
     if (state.activeId !== otherId) return; // المستخدم فتح دردشة تانية في الوقت ده
 
     listenMessages(convId);
+    listenDeletedMessages(convId);
     listenTyping(convId, otherId);
     listenReads(convId, otherId);
     listenPresence(otherId);
@@ -786,6 +787,47 @@
       }
     );
     off.messages = () => ref.off('value', cb);
+  }
+
+  /** بتحوّل رسالة موجودة في state.messages إلى "اتحذفت" فورًا محليًا —
+   * مستخدمة عشان اللي حذف يشوف الأثر على طول من غير ما يستنى رد Firebase. */
+  function markMessageDeletedLocally(messageId) {
+    const idx = state.messages.findIndex((m) => m.id === messageId);
+    if (idx === -1) return;
+    state.messages[idx] = Object.assign({}, state.messages[idx], {
+      text: '', mediaUrl: null, type: 'text', deletedForAll: true,
+    });
+    renderMessages();
+  }
+
+  /** سماعة على "شواهد القبور" (tombstones) — كل ما حد يحذف رسالة للجميع
+   * بيتسجّل الآيدي بتاعها هنا. من غير السماعة دي، الطرف التاني (أو حتى
+   * جهاز تاني لنفس الشخص) هيفضل شايف نسخة الرسالة المتخزّنة عنده محليًا
+   * وكأن حاجة ماتحذفتش، لأن الرسالة الأصلية اتمسحت تمامًا من مكانها. */
+  function listenDeletedMessages(convId) {
+    detach('deletedMessages');
+    const ref = db.ref(Paths.deletedMessages(convId));
+    const cb = ref.on(
+      'value',
+      (snap) => {
+        const data = snap.val() || {};
+        const ids = Object.keys(data);
+        if (!ids.length) return;
+        let changed = false;
+        ids.forEach((id) => {
+          const idx = state.messages.findIndex((m) => m.id === id);
+          if (idx !== -1 && !state.messages[idx].deletedForAll) {
+            state.messages[idx] = Object.assign({}, state.messages[idx], {
+              text: '', mediaUrl: null, type: 'text', deletedForAll: true,
+            });
+            changed = true;
+          }
+        });
+        if (changed) renderMessages();
+      },
+      (err) => console.warn('deletedMessages listener failed', err && err.code)
+    );
+    off.deletedMessages = () => ref.off('value', cb);
   }
 
   function listenTyping(convId, otherId) {
@@ -1493,9 +1535,10 @@
     const isMine = String(message.senderId) === myId();
 
     // إخفاء/إظهار حسب نوع الرسالة
-    el.msgMenuDeleteAll.style.display = isMine ? 'flex' : 'none';
+    const alreadyDeleted = !!message.deletedForAll;
+    el.msgMenuDeleteAll.style.display = (isMine && !alreadyDeleted) ? 'flex' : 'none';
     el.msgMenuDeleteMe.style.display = 'flex';
-    el.msgMenuReply.style.display = 'flex';
+    el.msgMenuReply.style.display = alreadyDeleted ? 'none' : 'flex';
 
     // لو رسالة محذوفة أو ميديا، نخفي نسخ
     const canCopy = message.text && !message.deletedForAll && message.type !== 'image' && message.type !== 'video';
@@ -1578,10 +1621,18 @@
       const chat = state.chats.get(state.activeId);
       if (!chat || !db) return;
       try {
-        // بمسح محتوى الرسالة من Firebase (مش الـ node نفسه، عشان نقدر نعرض "اتحذفت")
-        await db.ref(Paths.messages(chat.convId) + '/' + target.id).update({
-          text: '', mediaUrl: null, type: 'text', deletedAt: stamp(),
-        });
+        // قواعد الأمان بتسمح بحالتين بس على أي رسالة: إنشاء، أو مسح كامل —
+        // التعديل في مكانها ممنوع تمامًا (عشان محدش يقدر يغيّر كلام اتبعت
+        // فعلاً). فعشان "حذف للجميع" يشتغل، لازم نمسح الرسالة الأصلية
+        // بالكامل من مكانها، ونسجّل "شاهد قبر" (tombstone) منفصل في
+        // deletedMessages بنفس الـ id — وده اللي بيخلّي أي جهاز (بتاعي
+        // أو بتاع التاني) يعرف إنها اتحذفت ويعرضها كـ"اتحذفت" بدل ما
+        // تختفي بصمت أو تفضل نسخة قديمة متخزنة عندهم.
+        const updates = {};
+        updates[Paths.message(chat.convId, target.id)] = null;
+        updates[Paths.deletedMessage(chat.convId, target.id)] = { deletedBy: myId(), ts: stamp() };
+        await db.ref().update(updates);
+        markMessageDeletedLocally(target.id);
         toast('اتحذفت للجميع ✓');
       } catch (err) {
         toast('الحذف ما نفعش — حاول تاني', 'error');

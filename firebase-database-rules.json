@@ -56,6 +56,20 @@
           }
         },
 
+        "deletedMessages": {
+          "$messageId": {
+            ".write": "auth != null && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && root.child('conversations/' + $convId + '/messages/' + $messageId + '/senderId').val() === auth.uid",
+            ".validate": "newData.hasChildren(['deletedBy', 'ts']) && newData.child('deletedBy').val() === auth.uid",
+            "deletedBy": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
+            },
+            "ts": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+            },
+            "$other": { ".validate": false }
+          }
+        },
+
         "typing": {
           "$uid": {
             ".write": "auth != null && auth.uid === $uid && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",

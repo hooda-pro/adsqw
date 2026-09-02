@@ -2,7 +2,7 @@
   "rules": {
     "presence": {
       "$uid": {
-        ".read": "auth != null && (auth.uid === $uid || root.child('userConversations/' + auth.uid + '/' + $uid).exists())",
+        ".read": "auth != null && (auth.uid === $uid || (root.child('userConversations/' + auth.uid + '/' + $uid).exists() && !root.child('conversations/' + auth.uid + '_' + $uid + '/blocked/' + auth.uid).exists() && !root.child('conversations/' + $uid + '_' + auth.uid + '/blocked/' + auth.uid).exists()))",
         ".write": "auth != null && auth.uid === $uid",
         ".validate": "newData.hasChildren(['state', 'lastChanged'])",
         "state": {
@@ -23,6 +23,27 @@
           "$uid": {
             ".write": "auth != null && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid))",
             ".validate": "newData.isBoolean() && newData.val() === true && ($convId.beginsWith($uid + '_') || $convId.endsWith('_' + $uid))"
+          }
+        },
+
+        "blocked": {
+          "$blockedUid": {
+            ".write": "auth != null && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && auth.uid !== $blockedUid && ($convId.beginsWith($blockedUid + '_') || $convId.endsWith('_' + $blockedUid))",
+            ".validate": "newData.isBoolean() && newData.val() === true"
+          }
+        },
+
+        "presenceSnapshot": {
+          "$blockedUid": {
+            ".write": "auth != null && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && auth.uid !== $blockedUid && ($convId.beginsWith($blockedUid + '_') || $convId.endsWith('_' + $blockedUid))",
+            ".validate": "newData.hasChildren(['state', 'lastChanged'])",
+            "state": {
+              ".validate": "newData.isString() && (newData.val() === 'online' || newData.val() === 'offline')"
+            },
+            "lastChanged": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+            },
+            "$other": { ".validate": false }
           }
         },
 
@@ -52,13 +73,19 @@
             "replyTo": {
               ".validate": "newData.isString() && newData.val().length <= 64"
             },
+            "replyText": {
+              ".validate": "newData.isString() && newData.val().length <= 4096"
+            },
+            "replySenderName": {
+              ".validate": "newData.isString() && newData.val().length <= 120"
+            },
             "$other": { ".validate": false }
           }
         },
 
         "deletedMessages": {
           "$messageId": {
-            ".write": "auth != null && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && root.child('conversations/' + $convId + '/messages/' + $messageId + '/senderId').val() === auth.uid",
+            ".write": "auth != null && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && !data.exists() && !root.child('conversations/' + $convId + '/messages/' + $messageId).exists()",
             ".validate": "newData.hasChildren(['deletedBy', 'ts']) && newData.child('deletedBy').val() === auth.uid",
             "deletedBy": {
               ".validate": "newData.isString() && newData.val().length <= 64"
@@ -91,7 +118,11 @@
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid",
         "$otherUid": {
-          ".validate": "newData.isBoolean() && newData.val() === true"
+          ".validate": "newData.hasChildren(['at']) && newData.child('at').isNumber() && newData.child('at').val() <= now + 60000",
+          "at": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
+          "$other": { ".validate": false }
         }
       }
     },
@@ -105,43 +136,43 @@
           ".validate": "newData.hasChildren(['convId'])",
 
           "convId": {
-            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $otherUid && !root.child('blocks/' + $uid + '/' + $otherUid).exists()))",
             ".validate": "newData.isString() && newData.val().matches(/^[0-9]+_[0-9]+$/) && ($uid + '_' + $otherUid === newData.val() || $otherUid + '_' + $uid === newData.val())"
           },
           "otherName": {
-            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $otherUid && !root.child('blocks/' + $uid + '/' + $otherUid).exists()))",
             ".validate": "newData.isString() && newData.val().length <= 120"
           },
           "otherPhone": {
-            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $otherUid && !root.child('blocks/' + $uid + '/' + $otherUid).exists()))",
             ".validate": "newData.isString() && newData.val().length <= 24"
           },
           "otherStatusText": {
-            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $otherUid && !root.child('blocks/' + $uid + '/' + $otherUid).exists()))",
             ".validate": "newData.isString() && newData.val().length <= 80"
           },
           "isVerified": {
-            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $otherUid && !root.child('blocks/' + $uid + '/' + $otherUid).exists()))",
             ".validate": "newData.isBoolean()"
           },
           "isOfficial": {
-            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $otherUid && !root.child('blocks/' + $uid + '/' + $otherUid).exists()))",
             ".validate": "newData.isBoolean()"
           },
           "lastMessage": {
-            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $otherUid && !root.child('blocks/' + $uid + '/' + $otherUid).exists()))",
             ".validate": "newData.isString() && newData.val().length <= 4096"
           },
           "lastAt": {
-            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $otherUid && !root.child('blocks/' + $uid + '/' + $otherUid).exists()))",
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
           },
           "lastSenderId": {
-            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $otherUid && !root.child('blocks/' + $uid + '/' + $otherUid).exists()))",
             ".validate": "newData.isString() && (newData.val() === $uid || newData.val() === $otherUid)"
           },
           "unread": {
-            ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)",
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $otherUid && !root.child('blocks/' + $uid + '/' + $otherUid).exists()))",
             ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 9999"
           },
           "myReadAt": {

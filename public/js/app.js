@@ -121,6 +121,7 @@
     confirmCallback: null, // callback بتاع مودال التأكيد
     otherProfile: null, // بروفايل الشخص اللي فاتح شات معاه
     blockedIds: new Set(), // آي-ديهات الناس اللي حظرتهم
+    blockedAt: new Map(), // آي-دي -> وقت الحظر (بنخفي بس رسايله اللي جت بعد الوقت ده)
   };
 
   let db = null;
@@ -380,7 +381,13 @@
       (snap) => {
         const data = snap.val() || {};
         state.blockedIds = new Set(Object.keys(data));
+        state.blockedAt = new Map(
+          Object.entries(data).map(([uid, v]) => [uid, (v && v.at) || 0])
+        );
         paintBlockedState();
+        // أعد فلترة رسايل الدردشة المفتوحة على طول لو بلاك الشخص ده دلوقتي
+        // (أو فك الحظر) وهي مفتوحة قدامك أصلاً
+        if (state.activeId) renderMessages();
         if (!el.profileModal.hidden && state.activeId) {
           const chat = state.chats.get(state.activeId);
           if (chat) {
@@ -656,7 +663,7 @@
     listenDeletedMessages(convId);
     listenTyping(convId, otherId);
     listenReads(convId, otherId);
-    listenPresence(otherId);
+    listenPresence(otherId, convId);
     markRead();
 
     if (matchMedia('(min-width: 900px)').matches) el.composerInput.focus();
@@ -861,15 +868,30 @@
     off.reads = () => ref.off('value', cb);
   }
 
-  function listenPresence(otherId) {
+  /** لو هو حاظرني جوه الدردشة دي، أنا بس أشوف "آخر ظهور" مجمّد وقت الحظر —
+   * مش أوضاعه لايف (زي واتساب بالظبط). عشان كده بنتأكد الأول قبل ما نفتح
+   * سماعة حية على presence بتاعه. */
+  function listenPresence(otherId, convId) {
     detach('presence');
-    const ref = db.ref(Paths.presence(otherId));
-    const cb = ref.on(
-      'value',
-      (snap) => { state.presence = snap.val(); paintStatus(); },
-      (err) => { console.warn('presence listener failed', err && err.code); state.presence = null; paintStatus(); }
-    );
-    off.presence = () => ref.off('value', cb);
+    db.ref(Paths.convBlocked(convId, myId())).once('value')
+      .then((blockSnap) => {
+        if (state.activeId !== otherId) return; // اتقفلت الدردشة أو اتفتحت دردشة تانية قبل ما نخلّص
+        if (blockSnap.exists()) {
+          db.ref(Paths.convPresenceSnapshot(convId, myId())).once('value')
+            .then((s) => { state.presence = s.val(); paintStatus(); })
+            .catch(() => { state.presence = null; paintStatus(); });
+          off.presence = () => {}; // مفيش سماعة حية — القيمة مجمّدة لحد ما يفك الحظر
+          return;
+        }
+        const ref = db.ref(Paths.presence(otherId));
+        const cb = ref.on(
+          'value',
+          (snap) => { state.presence = snap.val(); paintStatus(); },
+          (err) => { console.warn('presence listener failed', err && err.code); state.presence = null; paintStatus(); }
+        );
+        off.presence = () => ref.off('value', cb);
+      })
+      .catch((err) => console.warn('block check failed', err && err.code));
   }
 
   function isNearBottom(box) {
@@ -936,6 +958,14 @@
     renderedKeys = [];
   }
 
+  /** رسالة من شخص أنا حاظره وبعدها بعد وقت الحظر — بتتخبّى تمامًا وكأنها
+   * ما وصلتش خالص (زي واتساب بالظبط)، من غير ما تلمس رسايل قبل الحظر. */
+  function isBlockedMessage(m) {
+    if (!state.blockedIds.has(String(m.senderId))) return false;
+    const at = state.blockedAt.get(String(m.senderId)) || 0;
+    return !at || (m.ts || 0) > at;
+  }
+
   function renderMessages(opts) {
     const o = opts || {};
     const box = el.messages;
@@ -945,7 +975,7 @@
     if (o.error) { resetMessageDom(); box.appendChild(note('msg-error', o.error)); return; }
 
     const pending = Array.from(state.pending.values());
-    const all = state.messages.concat(pending);
+    const all = state.messages.concat(pending).filter((m) => !isBlockedMessage(m));
 
     const oldTyping = box.querySelector('.msg-typing-row');
     if (oldTyping) oldTyping.remove();
@@ -1144,7 +1174,8 @@
   function markRead() {
     const chat = state.chats.get(state.activeId);
     if (!chat || !db) return;
-    const last = state.messages[state.messages.length - 1];
+    const visible = state.messages.filter((m) => !isBlockedMessage(m));
+    const last = visible[visible.length - 1];
     if (!last || !last.ts) return;
     if (String(last.senderId) === myId()) return;
     if (chat.myReadAt && chat.myReadAt >= last.ts) return;
@@ -1344,17 +1375,25 @@
       unread: 0,
     });
 
-    await db.ref(Paths.userChat(other, me)).update({
-      convId: chat.convId,
-      otherName: state.me.official_display_name || state.me.name || 'مستخدم',
-      otherPhone: Phone.canonicalPhone(state.me.phone) || String(state.me.phone || ''),
-      otherStatusText: state.me.status_text || '',
-      isVerified: !!state.me.is_verified,
-      isOfficial: !!state.me.is_official,
-      lastMessage: text,
-      lastAt: now,
-      lastSenderId: me,
-    });
+    // بنحدّث سطر الدردشة عند الطرف التاني (المعاينة + العدّاد) في try/catch
+    // منفصل تمامًا: لو هو حاظرني، القاعدة بترفض الكتابة دي بالذات — ومفروض
+    // ده يفشل بهدوء من غير ما يخلّي رسالتي أنا تتعتبر "ماوصلتش" (تفضل
+    // شايفها اتبعتت عندي بعلامة صح واحدة بس، بالظبط زي واتساب).
+    try {
+      await db.ref(Paths.userChat(other, me)).update({
+        convId: chat.convId,
+        otherName: state.me.official_display_name || state.me.name || 'مستخدم',
+        otherPhone: Phone.canonicalPhone(state.me.phone) || String(state.me.phone || ''),
+        otherStatusText: state.me.status_text || '',
+        isVerified: !!state.me.is_verified,
+        isOfficial: !!state.me.is_official,
+        lastMessage: text,
+        lastAt: now,
+        lastSenderId: me,
+      });
+    } catch (err) {
+      console.warn('other chat summary write failed', err && err.code);
+    }
 
     // عدّاد الرسايل الجديدة عند الطرف التاني — بالسيرفر عشان ماحتاجش أقرا نودته
     try {
@@ -1845,14 +1884,26 @@
   /** بتحظر/تفك حظر شخص فعليًا في Firebase تحت blocks/<uid>/<otherUid>،
    * عشان الحالة تفضل متسجّلة (مش بس في الذاكرة) وتتفعّل فورًا على خانة
    * الكتابة عن طريق سماعة listenBlocks. */
-  function toggleBlock(otherId, otherName, isBlocked) {
+  function toggleBlock(otherId, otherName, isBlocked, convId) {
     if (!db) { toast('لسه بيتصل بسيرفر الرسايل — استنى شوية', 'warn'); return; }
     showConfirm(
       isBlocked ? 'إلغاء حظر ' + otherName + '؟' : 'حظر ' + otherName + '؟\nمش هتقدروا تتبادلوا رسايل.',
       async () => {
         try {
-          if (isBlocked) await db.ref(Paths.blockedUser(myId(), otherId)).remove();
-          else await db.ref(Paths.blockedUser(myId(), otherId)).set(true);
+          if (isBlocked) {
+            await db.ref(Paths.blockedUser(myId(), otherId)).remove();
+            // رجّع ظهور حالة الاتصال الحية عند الطرف التاني تاني
+            await db.ref(Paths.convBlocked(convId, otherId)).remove();
+            await db.ref(Paths.convPresenceSnapshot(convId, otherId)).remove();
+          } else {
+            await db.ref(Paths.blockedUser(myId(), otherId)).set({ at: stamp() });
+            // بنسجّل إن الشخص ده محظور جوه المحادثة دي بالذات (بيمنع رسايله
+            // الجديدة من إنها توصلني)، وبنجمّد "آخر ظهور" اللي هيشوفه هو —
+            // مش هيشوف أوضاعي لايف تاني لحد ما أفك الحظر.
+            await db.ref(Paths.convBlocked(convId, otherId)).set(true);
+            await db.ref(Paths.convPresenceSnapshot(convId, otherId))
+              .set({ state: 'offline', lastChanged: stamp() });
+          }
           el.profileModal.hidden = true;
           toast(isBlocked ? 'اترفع الحظر ✓' : 'اتحظر ✓');
         } catch (err) {
@@ -1866,13 +1917,13 @@
   el.profileBlock.addEventListener('click', () => {
     const chat = state.chats.get(state.activeId);
     if (!chat) return;
-    toggleBlock(chat.id, chat.otherName, state.blockedIds.has(chat.id));
+    toggleBlock(chat.id, chat.otherName, state.blockedIds.has(chat.id), chat.convId);
   });
 
   el.blockedBarUnblock.addEventListener('click', () => {
     const chat = state.chats.get(state.activeId);
     if (!chat) return;
-    toggleBlock(chat.id, chat.otherName, true);
+    toggleBlock(chat.id, chat.otherName, true, chat.convId);
   });
 
   // ============================================================

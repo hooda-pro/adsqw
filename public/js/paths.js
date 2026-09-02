@@ -33,6 +33,8 @@
     presence: (uid) => `presence/${uid}`,
     blocks: (uid) => `blocks/${uid}`,
     blockedUser: (uid, otherUid) => `blocks/${uid}/${otherUid}`,
+    convBlocked: (convId, blockedUid) => `conversations/${convId}/blocked/${blockedUid}`,
+    convPresenceSnapshot: (convId, blockedUid) => `conversations/${convId}/presenceSnapshot/${blockedUid}`,
   };
 
   return paths;

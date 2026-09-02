@@ -161,5 +161,18 @@
     previewText,
     messageStatus,
     unreadCount,
+    formatDate,
   };
+
+  /** بتنسيق التاريخ بشكل لطيف (يوم/شهر/سنة) */
+  function formatDate(input) {
+    if (!input) return '';
+    const d = new Date(input);
+    if (isNaN(d.getTime())) return '';
+    try {
+      return d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch (_) {
+      return d.toISOString().slice(0, 10);
+    }
+  }
 });

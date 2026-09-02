@@ -100,8 +100,8 @@
           <strong id="meName">—</strong>
           <span id="mePhone" dir="ltr"></span>
         </div>
-        <button class="icon-btn" id="logoutBtn" type="button" aria-label="خروج" title="خروج">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 8l-4 4 4 4M6 12h9"/></svg>
+        <button class="icon-btn" id="menuBtn" type="button" aria-label="القائمة" title="القائمة">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
         </button>
       </header>
 
@@ -141,14 +141,26 @@
           <button class="icon-btn back-btn" id="backBtn" type="button" aria-label="رجوع">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
           </button>
-          <div class="avatar" id="chatAvatar"></div>
-          <div class="chat-who">
-            <strong id="chatName">—</strong>
-            <span class="chat-status" id="chatStatus"></span>
-          </div>
+          <button type="button" class="chat-head-info" id="chatHeadInfo" aria-label="معلومات الشخص">
+            <span class="avatar" id="chatAvatar"></span>
+            <span class="chat-who">
+              <strong id="chatName">—</strong>
+              <span class="chat-status" id="chatStatus"></span>
+            </span>
+          </button>
         </header>
 
         <div class="messages" id="messages" aria-live="polite"></div>
+
+        <div class="reply-bar" id="replyBar" hidden>
+          <div class="reply-bar-main">
+            <strong id="replyBarName">—</strong>
+            <span id="replyBarText">—</span>
+          </div>
+          <button class="icon-btn" type="button" id="replyBarClose" aria-label="إلغاء الرد">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
 
         <form class="composer" id="composerForm">
           <button type="button" class="icon-btn attach-btn" id="attachBtn" aria-label="إرفاق صورة">
@@ -209,6 +221,156 @@
 </div>
 
 <div class="toasts" id="toasts" aria-live="assertive"></div>
+
+<!-- ============ قائمة الهامبرغر (3 شرط) ============ -->
+<div class="sheet-wrap" id="menuModal" hidden>
+  <div class="sheet-backdrop" data-close="menuModal"></div>
+  <div class="menu-sheet" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+    <button class="menu-item" id="menuProfile" type="button">
+      <span class="menu-item-ic">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+      </span>
+      <span class="menu-item-text">
+        <strong>حسابي</strong>
+        <span>الاسم والصورة والرقم</span>
+      </span>
+    </button>
+    <button class="menu-item" id="menuSettings" type="button">
+      <span class="menu-item-ic">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      </span>
+      <span class="menu-item-text">
+        <strong>الإعدادات</strong>
+        <span>غيّر اسمك أو رقمك</span>
+      </span>
+    </button>
+    <button class="menu-item menu-item-danger" id="menuLogout" type="button">
+      <span class="menu-item-ic">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 8l-4 4 4 4M6 12h9"/></svg>
+      </span>
+      <span class="menu-item-text">
+        <strong>تسجيل خروج</strong>
+        <span>امسح الجلسة من هذا الجهاز</span>
+      </span>
+    </button>
+  </div>
+</div>
+
+<!-- ============ الإعدادات ============ -->
+<div class="sheet-wrap" id="settingsModal" hidden>
+  <div class="sheet-backdrop" data-close="settingsModal"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <header class="sheet-head">
+      <h2 id="settingsTitle">الإعدادات</h2>
+      <button class="icon-btn" type="button" data-close="settingsModal" aria-label="إغلاق">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div class="sheet-body">
+      <form id="settingsForm" class="form" novalidate>
+        <label class="field">
+          <span>الاسم</span>
+          <input type="text" id="settingsName" autocomplete="name" placeholder="اسمك" required>
+        </label>
+        <label class="field">
+          <span>الحالة</span>
+          <input type="text" id="settingsStatus" maxlength="80" placeholder="مثلاً: متاح للدردشة">
+        </label>
+        <p class="field-note">رقم الموبايل بيتغير بشكل منفصل عشان محتاج تأكيد بكلمة السر.</p>
+        <button type="button" class="btn-link" id="settingsChangePhone">تغيير رقم الموبايل</button>
+        <p class="form-error" id="settingsError" role="alert"></p>
+        <button type="submit" class="btn btn-primary" id="settingsSaveBtn">حفظ التعديلات</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ تغيير رقم الموبايل ============ -->
+<div class="sheet-wrap" id="changePhoneModal" hidden>
+  <div class="sheet-backdrop" data-close="changePhoneModal"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="changePhoneTitle">
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <header class="sheet-head">
+      <h2 id="changePhoneTitle">تغيير رقم الموبايل</h2>
+      <button class="icon-btn" type="button" data-close="changePhoneModal" aria-label="إغلاق">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <form id="changePhoneForm" class="form sheet-body" novalidate>
+      <label class="field">
+        <span>الرقم الجديد</span>
+        <input type="tel" id="newPhone" inputmode="tel" dir="ltr" placeholder="01xxxxxxxxx" required>
+      </label>
+      <label class="field">
+        <span>كلمة السر (للتأكيد)</span>
+        <input type="password" id="phonePassword" autocomplete="current-password" placeholder="••••••" required>
+      </label>
+      <p class="form-error" id="changePhoneError" role="alert"></p>
+      <button type="submit" class="btn btn-primary" id="changePhoneBtn">تغيير الرقم</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ صفحة تفاصيل الشخص ============ -->
+<div class="sheet-wrap" id="profileModal" hidden>
+  <div class="sheet-backdrop" data-close="profileModal"></div>
+  <div class="profile-sheet" role="dialog" aria-modal="true" aria-labelledby="profileName">
+    <button class="profile-close" type="button" data-close="profileModal" aria-label="إغلاق">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <header class="profile-head">
+      <div class="profile-avatar" id="profileAvatar"></div>
+      <h2 class="profile-name" id="profileName">—</h2>
+      <p class="profile-phone" id="profilePhone" dir="ltr"></p>
+      <p class="profile-status" id="profileStatus"></p>
+    </header>
+    <div class="profile-body" id="profileBody"></div>
+    <footer class="profile-foot">
+      <button class="profile-action profile-action-danger" id="profileBlock" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2"/></svg>
+        <span id="profileBlockLabel">حظر</span>
+      </button>
+    </footer>
+  </div>
+</div>
+
+<!-- ============ قائمة الرسالة (Context menu) ============ -->
+<div class="msg-menu" id="msgMenu" hidden>
+  <button class="msg-menu-item" id="msgMenuReply" type="button">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17l-5-5 5-5M4 12h11a5 5 0 0 1 5 5v0"/></svg>
+    <span>رد</span>
+  </button>
+  <button class="msg-menu-item" id="msgMenuCopy" type="button">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+    <span>نسخ</span>
+  </button>
+  <button class="msg-menu-item msg-menu-danger" id="msgMenuDeleteMe" type="button">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/></svg>
+    <span>حذف عندي</span>
+  </button>
+  <button class="msg-menu-item msg-menu-danger" id="msgMenuDeleteAll" type="button">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14M10 11v6M14 11v6"/></svg>
+    <span>حذف للجميع</span>
+  </button>
+</div>
+
+<!-- ============ تأكيد الحذف ============ -->
+<div class="sheet-wrap" id="confirmModal" hidden>
+  <div class="sheet-backdrop" data-close="confirmModal"></div>
+  <div class="sheet sheet-sm" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <header class="sheet-head">
+      <h2 id="confirmTitle">تأكيد</h2>
+    </header>
+    <div class="sheet-body">
+      <p id="confirmMessage" class="confirm-msg"></p>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-ghost" id="confirmCancel">إلغاء</button>
+        <button type="button" class="btn btn-primary btn-danger" id="confirmOk">موافق</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>

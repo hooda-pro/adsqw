@@ -38,15 +38,54 @@
     signupPassword: $('signupPassword'), signupError: $('signupError'), signupBtn: $('signupBtn'),
     forgotLink: $('forgotLink'), forgotWhatsapp: $('forgotWhatsapp'),
     // app
-    meAvatar: $('meAvatar'), meName: $('meName'), mePhone: $('mePhone'), logoutBtn: $('logoutBtn'),
+    meAvatar: $('meAvatar'), meName: $('meName'), mePhone: $('mePhone'),
     chatFilter: $('chatFilter'), chatList: $('chatList'), chatsEmpty: $('chatsEmpty'),
     newChatBtn: $('newChatBtn'),
     chatView: $('chatView'), backBtn: $('backBtn'),
     chatAvatar: $('chatAvatar'), chatName: $('chatName'), chatStatus: $('chatStatus'),
+    chatHeadInfo: $('chatHeadInfo'),
     messages: $('messages'),
     composerForm: $('composerForm'), composerInput: $('composerInput'), sendBtn: $('sendBtn'),
     attachBtn: $('attachBtn'), mediaInput: $('mediaInput'),
-    // modals
+    // reply bar
+    replyBar: $('replyBar'), replyBarName: $('replyBarName'), replyBarText: $('replyBarText'),
+    replyBarClose: $('replyBarClose'),
+    // msg context menu
+    msgMenu: $('msgMenu'),
+    msgMenuReply: $('msgMenuReply'), msgMenuCopy: $('msgMenuCopy'),
+    msgMenuDeleteMe: $('msgMenuDeleteMe'), msgMenuDeleteAll: $('msgMenuDeleteAll'),
+    // hamburger + modals
+    menuBtn: $('menuBtn'),
+    menuModal: $('menuModal'),
+    menuProfile: $('menuProfile'),
+    menuSettings: $('menuSettings'),
+    menuLogout: $('menuLogout'),
+    settingsModal: $('settingsModal'),
+    settingsForm: $('settingsForm'),
+    settingsName: $('settingsName'),
+    settingsStatus: $('settingsStatus'),
+    settingsError: $('settingsError'),
+    settingsSaveBtn: $('settingsSaveBtn'),
+    settingsChangePhone: $('settingsChangePhone'),
+    changePhoneModal: $('changePhoneModal'),
+    changePhoneForm: $('changePhoneForm'),
+    newPhone: $('newPhone'),
+    phonePassword: $('phonePassword'),
+    changePhoneError: $('changePhoneError'),
+    changePhoneBtn: $('changePhoneBtn'),
+    profileModal: $('profileModal'),
+    profileAvatar: $('profileAvatar'),
+    profileName: $('profileName'),
+    profilePhone: $('profilePhone'),
+    profileStatus: $('profileStatus'),
+    profileBody: $('profileBody'),
+    profileBlock: $('profileBlock'),
+    profileBlockLabel: $('profileBlockLabel'),
+    confirmModal: $('confirmModal'),
+    confirmMessage: $('confirmMessage'),
+    confirmCancel: $('confirmCancel'),
+    confirmOk: $('confirmOk'),
+    // existing modals
     newChatModal: $('newChatModal'), searchForm: $('searchForm'),
     searchPhone: $('searchPhone'), searchBtn: $('searchBtn'), searchOut: $('searchOut'),
     forgotModal: $('forgotModal'), toasts: $('toasts'),
@@ -63,12 +102,19 @@
     pending: new Map(), // cid -> رسالة مؤقتة لسه ما وصلتش
     pendingLocalUrls: new Map(), // cid -> blob URL محلي للصورة/الفيديو، لحد ما نتأكد إن النسخة الحقيقية وصلت
     cleanedIds: new Set(), // آي-ديهات الرسايل اللي اتمسحت من Firebase بعد ما اتخزنت على الجهاز — عشان منحاولش تاني كل مرة
+    hiddenIds: new Set(), // آي-ديهات الرسايل اللي حذفتها عندي (محلياً)
     otherReadAt: 0,
     otherTypingAt: 0,
     presence: null,
     lastTypingPing: 0,
     typingTimer: null,
     pushedHistory: false,
+    // مزايا جديدة
+    replyTo: null, // { id, text, senderName } — لما ترد على رسالة
+    msgMenuTarget: null, // آي-دي الرسالة اللي ضغط عليها
+    confirmCallback: null, // callback بتاع مودال التأكيد
+    otherProfile: null, // بروفايل الشخص اللي فاتح شات معاه
+    blockedIds: new Set(), // آي-ديهات الناس اللي حظرتهم
   };
 
   let db = null;
@@ -262,13 +308,17 @@
     setTimeout(() => el.loginPhone.focus(), 80);
   }
 
-  el.logoutBtn.addEventListener('click', async () => {
+  /** تسجيل الخروج — بيمسح كل حاجة محلية ويرجع لشاشة الدخول */
+  async function doLogout() {
     try {
       if (db && state.me) await db.ref(Paths.presence(myId())).set({ state: 'offline', lastChanged: Date.now() });
     } catch (_) { /* عادي */ }
+    if (state.me) {
+      try { await Store.wipe(state.me.id); } catch (_) { /* هنتعامل مع الفشل بشكل صامت */ }
+    }
     clearToken();
     location.reload();
-  });
+  }
 
   // ============================================================
   // الدخول للتطبيق + Firebase
@@ -283,6 +333,18 @@
     // فيه من قبل فورًا — من غير ما ننتظر Firebase أصلًا (زي واتساب أول
     // ما تفتحه: بتشوف شاتاتك على طول من غير "بيحمّل").
     await Store.init(user.id);
+
+    // بنحفظ بروفايلي محلياً عشان يبقى متاح بسرعة حتى offline
+    Store.saveProfile({
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      status_text: user.status_text || '',
+      is_verified: user.is_verified,
+      is_official: user.is_official,
+      avatar_url: user.avatar_url,
+    }).catch(() => {});
+
     const cachedChats = await Store.getChats();
     cachedChats.forEach((c) => state.chats.set(String(c.id), c));
     renderChatList();
@@ -304,6 +366,11 @@
     el.mePhone.textContent = Phone.formatPhoneForDisplay(state.me.phone || '');
     el.meAvatar.textContent = Fmt.initials(state.me.name);
   }
+
+  // الضغط على الأفاتار بتاعي يفتح بروفايلي
+  el.meAvatar.addEventListener('click', () => {
+    if (state.me) openMyProfile();
+  });
 
   async function signIntoFirebase() {
     if (!window.firebase || !window.FIREBASE_CONFIG) throw new Error('firebase sdk/config missing');
@@ -498,10 +565,13 @@
     state.messages = [];
     clearPending();
     state.cleanedIds = new Set();
+    state.hiddenIds = await Store.getHiddenIds(convId);
     resetMessageDom();
     state.otherReadAt = 0;
     state.otherTypingAt = 0;
     state.presence = null;
+    cancelReply();
+    state.otherProfile = null;
 
     detachChatListeners();
     closeSheet('newChatModal');
@@ -516,7 +586,9 @@
     // ولما Firebase يرد هيستبدلها بالنسخة المحدّثة.
     const cachedMsgs = await Store.getMessages(convId);
     if (state.activeId !== otherId) return;
-    if (cachedMsgs.length) { state.messages = cachedMsgs; renderMessages(); }
+    // فلترة الرسايل المخفية محلياً من الـ cache
+    const filteredCache = cachedMsgs.filter((m) => !state.hiddenIds.has(m.id));
+    if (filteredCache.length) { state.messages = filteredCache; renderMessages(); }
     else renderMessages({ loading: true });
 
     // ⚠️ الترتيب مهم: participants + تسجيل الدردشة الأول، بعدين السماعات.
@@ -622,26 +694,24 @@
         const live = [];
         snap.forEach((child) => {
           const v = child.val() || {};
+          // لو الرسالة محذوفة (مفيش text ومفيش mediaUrl) بنسجلها كـ deletedForAll
+          const isDeleted = !v.text && !v.mediaUrl;
           live.push({
             id: child.key,
-            senderId: String(v.senderId),
+            senderId: String(v.senderId || ''),
             text: String(v.text || ''),
             ts: Number(v.ts) || 0,
             cid: v.cid,
             type: v.type || 'text',
             mediaUrl: v.mediaUrl || null,
+            replyTo: v.replyTo || null,
+            replyText: v.replyText || null,
+            replySenderName: v.replySenderName || null,
+            deletedForAll: isDeleted,
           });
         });
         live.sort((a, b) => (a.ts || 0) - (b.ts || 0));
 
-        // تصليح: الرسالة كانت بتتأخر شوية عشان كنا بننتظر (await) قراءة/كتابة
-        // IndexedDB قبل ما نعرض حاجة على الشاشة خالص. دلوقتي العرض فوري
-        // (مثل ما كان بالظبط)، والتخزين على الجهاز والتنضيف بيحصلوا في
-        // الخلفية من غير ما يأخّروا ظهور الرسالة ولا نقطة واحدة.
-        //
-        // بندمج مع اللي عندي في الذاكرة أصلاً (مش هنفتح IndexedDB تاني) —
-        // ده كافي عشان أي رسالة كانت اتحمّلت من الجهاز لما فتحت الشات
-        // (في openChat) تفضل ظاهرة حتى لو السيرفر مسحها بعد كده.
         const byId = new Map(state.messages.map((m) => [m.id, m]));
         live.forEach((m) => byId.set(m.id, m));
         state.messages = Array.from(byId.values()).sort((a, b) => (a.ts || 0) - (b.ts || 0));
@@ -656,19 +726,8 @@
         markRead();
 
         // تخزين على جهاز المستخدم — في الخلفية، مايأخّرش ظهور الرسالة
-        Store.saveMessages(convId, live).catch(() => {});
-
-        // تنضيف: الرسايل اللي وصلتلي (مش أنا اللي بعتها) وخزّنتها فوق،
-        // بقت آمنة تتشال من Firebase — بالظبط زي واتساب. ده كمان بيحصل
-        // في الخلفية، مايأخّرش ولا يوقف عرض الرسالة.
-        const me = myId();
-        live.forEach((m) => {
-          if (String(m.senderId) === me) return; // رسايلي أنا: الطرف التاني هو اللي هيمسحها لما يستقبلها
-          if (state.cleanedIds.has(m.id)) return;
-          state.cleanedIds.add(m.id);
-          db.ref(Paths.messages(convId) + '/' + m.id).remove()
-            .catch((err) => { state.cleanedIds.delete(m.id); console.warn('مسح الرسالة من السيرفر فشل (هيتعاد المحاولة تلقائي)', err && err.code); });
-        });
+        // بنخزن بس الرسايل اللي مش محذوفة (عشان ما نحفظش مكان فاضي)
+        Store.saveMessages(convId, live.filter((m) => !m.deletedForAll && m.text)).catch(() => {});
       },
       (err) => {
         console.error('messages listener failed:', err && err.code, err);
@@ -757,6 +816,11 @@
   function updateNode(node, item) {
     if (item.kind === 'divider') return; // نص ثابت، مفيش تحديث لازم
     const m = item.message;
+    // لو الرسالة مخفية عندي محلياً
+    if (state.hiddenIds.has(m.id)) {
+      node.style.display = 'none';
+      return;
+    }
     if ((m.type === 'image' || m.type === 'video') && typeof m.uploadPct === 'number') {
       const bar = node.querySelector('.msg-media-progress');
       if (bar) bar.style.setProperty('--pct', m.uploadPct + '%');
@@ -846,6 +910,47 @@
     if (item.startsGroup) div.classList.add('starts-group');
     if (item.endsGroup) div.classList.add('ends-group');
     if (m.pending) div.classList.add('is-pending');
+    div.dataset.id = m.id;
+
+    // الضغط على الرسالة (نقرة طويلة أو click-right) يفتح القائمة
+    div.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openMsgMenu(m, e.clientX, e.clientY);
+    });
+
+    // للضغط الطويل على اللمس
+    let pressTimer = null;
+    div.addEventListener('touchstart', (e) => {
+      const touch = e.touches[0];
+      pressTimer = setTimeout(() => openMsgMenu(m, touch.clientX, touch.clientY), 500);
+    }, { passive: true });
+    div.addEventListener('touchend', () => clearTimeout(pressTimer));
+    div.addEventListener('touchmove', () => clearTimeout(pressTimer));
+
+    // لو الرسالة محذوفة عندي — نخفيها بدل ما نعرضها
+    if (state.hiddenIds.has(m.id)) {
+      div.style.display = 'none';
+      div.dataset.hidden = '1';
+      return div;
+    }
+
+    // عرض الرد (reply) لو موجود
+    if (m.replyTo) {
+      const replyBox = document.createElement('div');
+      replyBox.className = 'msg-reply';
+      const replySender = document.createElement('strong');
+      replySender.textContent = m.replySenderName || '—';
+      const replyText = document.createElement('span');
+      replyText.textContent = m.replyText || 'رسالة محذوفة';
+      replyBox.appendChild(replySender);
+      replyBox.appendChild(replyText);
+      // النقر على الرد يقفز للرسالة الأصلية
+      replyBox.addEventListener('click', () => {
+        const target = el.messages.querySelector('[data-id="' + m.replyTo + '"]');
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      div.appendChild(replyBox);
+    }
 
     if (m.type === 'image' || m.type === 'video') {
       div.classList.add('has-media');
@@ -874,7 +979,10 @@
         wrap.appendChild(bar);
       } else if (m.type === 'image') {
         wrap.style.cursor = 'zoom-in';
-        wrap.addEventListener('click', () => { if (!wrap.classList.contains('is-broken')) openLightbox(m.mediaUrl, false); });
+        wrap.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (!wrap.classList.contains('is-broken')) openLightbox(m.mediaUrl);
+        });
       }
       div.appendChild(wrap);
 
@@ -885,6 +993,13 @@
         cap.appendChild(document.createTextNode(m.text));
         div.appendChild(cap);
       }
+    } else if (m.deletedForAll) {
+      // رسالة محذوفة للجميع — نص رمادي
+      const del = document.createElement('span');
+      del.className = 'msg-deleted';
+      del.textContent = '🚫 هذه الرسالة اتحذفت';
+      div.appendChild(del);
+      div.classList.add('is-deleted');
     } else {
       // textContent مش innerHTML — أي رسالة فيها HTML بتظهر كنص عادي
       div.appendChild(document.createTextNode(m.text));
@@ -963,9 +1078,25 @@
     if (!chat || !text || !db) return;
 
     const cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    state.pending.set(cid, {
+
+    // بنبني الـ payload الأساسي مع دعم الرد
+    const payload = { senderId: myId(), text, ts: stamp(), cid };
+    if (state.replyTo) {
+      payload.replyTo = state.replyTo.id;
+      payload.replyText = state.replyTo.text;
+      payload.replySenderName = state.replyTo.senderName;
+    }
+
+    state.pending.set(cid, Object.assign({
       id: cid, cid, senderId: myId(), text, ts: Date.now(), pending: true,
-    });
+    }, state.replyTo ? {
+      replyTo: state.replyTo.id,
+      replyText: state.replyTo.text,
+      replySenderName: state.replyTo.senderName,
+    } : {}));
+
+    // تصفير الـ reply bar
+    cancelReply();
 
     el.composerInput.value = '';
     resetComposer();
@@ -973,7 +1104,7 @@
     clearMyTyping();
 
     try {
-      await db.ref(Paths.messages(chat.convId)).push({ senderId: myId(), text, ts: stamp(), cid });
+      await db.ref(Paths.messages(chat.convId)).push(payload);
       await writeChatSummaries(chat, text);
     } catch (err) {
       console.error('send failed:', err && err.code, err);
@@ -982,7 +1113,7 @@
       resetComposer();
       renderMessages();
       const denied = err && err.code === 'PERMISSION_DENIED';
-      toast(denied ? 'الرسالة ماوصلتش — راجع قواعد الأمان في Firebase' : 'الرسالة ماوصلتش — حاول تاني', 'error');
+      toast(denied ? 'الرسالة ماوصلتش — راجع قواعد الأمان في Firebase' : 'الرسالة ماوفرش — حاول تاني', 'error');
     }
   }
 
@@ -1061,10 +1192,17 @@
     const cid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const localUrl = URL.createObjectURL(file);
     state.pendingLocalUrls.set(cid, localUrl);
-    state.pending.set(cid, {
+    const replySnapshot = state.replyTo ? {
+      replyTo: state.replyTo.id,
+      replyText: state.replyTo.text,
+      replySenderName: state.replyTo.senderName,
+    } : null;
+    state.pending.set(cid, Object.assign({
       id: cid, cid, senderId: myId(), text, ts: Date.now(), pending: true,
       type, mediaUrl: localUrl,
-    });
+    }, replySnapshot || {}));
+
+    cancelReply();
 
     el.composerInput.value = '';
     resetComposer();
@@ -1074,14 +1212,10 @@
       // بنضغط الصورة في المتصفح نفسه، وبنخزّنها كنص جوه Firebase مباشرة —
       // مفيش خدمة تخزين خارجية خالص، بس نفس Firebase اللي الرسايل شغالة بيه
       const dataUrl = await compressImageUnderLimit(file);
-      await db.ref(Paths.messages(chat.convId)).push({
-        senderId: myId(), text, ts: stamp(), cid, type, mediaUrl: dataUrl,
-      });
+      const payload = { senderId: myId(), text, ts: stamp(), cid, type, mediaUrl: dataUrl };
+      if (replySnapshot) Object.assign(payload, replySnapshot);
+      await db.ref(Paths.messages(chat.convId)).push(payload);
       await writeChatSummaries(chat, text);
-      // تصليح: كنا بنمسح المعاينة المحلية (blob URL) فورًا هنا، حتى لو
-      // النسخة الحقيقية لسه ما وصلتش لشاشتنا — فكانت الصورة بتتكسر لحظة
-      // قبل ما توصل النسخة الحقيقية. دلوقتي بنسيب المعاينة المحلية شغالة،
-      // وبنمسحها بس لما نتأكد إن الرسالة الحقيقية وصلت فعلاً (جوه listenMessages).
     } catch (err) {
       console.error('media send failed:', err);
       state.pending.delete(cid);
@@ -1270,6 +1404,314 @@
     btn.addEventListener('click', () => openChat(user));
     el.searchOut.appendChild(btn);
   }
+
+  // ============================================================
+  // 1) الرد على رسالة (Reply)
+  // ============================================================
+  function setReplyTo(message) {
+    const isMine = String(message.senderId) === myId();
+    state.replyTo = {
+      id: message.id,
+      text: message.text || (message.type === 'image' ? '📷 صورة' : 'رسالة'),
+      senderName: isMine ? 'أنت' : (state.chats.get(state.activeId)?.otherName || '—'),
+    };
+    el.replyBar.hidden = false;
+    el.replyBarName.textContent = state.replyTo.senderName;
+    el.replyBarText.textContent = state.replyTo.text;
+    el.composerInput.focus();
+  }
+
+  function cancelReply() {
+    state.replyTo = null;
+    if (el.replyBar) el.replyBar.hidden = true;
+  }
+
+  el.replyBarClose.addEventListener('click', cancelReply);
+
+  // ============================================================
+  // 2) قائمة الرسالة (Context menu) — رد، نسخ، حذف عندي، حذف للجميع
+  // ============================================================
+  function openMsgMenu(message, x, y) {
+    state.msgMenuTarget = message;
+    const menu = el.msgMenu;
+    const isMine = String(message.senderId) === myId();
+
+    // إخفاء/إظهار حسب نوع الرسالة
+    el.msgMenuDeleteAll.style.display = isMine ? 'flex' : 'none';
+    el.msgMenuDeleteMe.style.display = 'flex';
+    el.msgMenuReply.style.display = 'flex';
+
+    // لو رسالة محذوفة أو ميديا، نخفي نسخ
+    const canCopy = message.text && !message.deletedForAll && message.type !== 'image' && message.type !== 'video';
+    el.msgMenuCopy.style.display = canCopy ? 'flex' : 'none';
+
+    menu.hidden = false;
+
+    // حساب الموقع بحيث يفضل جوه الشاشة
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    const rect = menu.getBoundingClientRect();
+    const pad = 8;
+    let nx = x, ny = y;
+    if (nx + rect.width + pad > window.innerWidth) nx = window.innerWidth - rect.width - pad;
+    if (ny + rect.height + pad > window.innerHeight) ny = window.innerHeight - rect.height - pad;
+    if (nx < pad) nx = pad;
+    if (ny < pad) ny = pad;
+    menu.style.left = nx + 'px';
+    menu.style.top = ny + 'px';
+
+    // نقفل لما ندوس في أي مكان تاني
+    setTimeout(() => {
+      const close = (ev) => {
+        if (!menu.contains(ev.target)) {
+          menu.hidden = true;
+          document.removeEventListener('click', close, true);
+          document.removeEventListener('contextmenu', close, true);
+        }
+      };
+      document.addEventListener('click', close, true);
+      document.addEventListener('contextmenu', close, true);
+    }, 0);
+  }
+
+  el.msgMenuReply.addEventListener('click', () => {
+    if (state.msgMenuTarget) setReplyTo(state.msgMenuTarget);
+    el.msgMenu.hidden = true;
+  });
+
+  el.msgMenuCopy.addEventListener('click', async () => {
+    if (state.msgMenuTarget && state.msgMenuTarget.text) {
+      try {
+        await navigator.clipboard.writeText(state.msgMenuTarget.text);
+        toast('اتنسخت ✓');
+      } catch (_) {
+        toast('النسخ ما نفعش', 'error');
+      }
+    }
+    el.msgMenu.hidden = true;
+  });
+
+  el.msgMenuDeleteMe.addEventListener('click', () => {
+    if (!state.msgMenuTarget) return;
+    const target = state.msgMenuTarget;
+    el.msgMenu.hidden = true;
+    showConfirm('حذف الرسالة دي عندك بس؟\nالطرف التاني هيفضل يشوفها.', async () => {
+      const chat = state.chats.get(state.activeId);
+      if (!chat) return;
+      state.hiddenIds.add(target.id);
+      Store.hideMessage(chat.convId, target.id).catch(() => {});
+      // نشيل من الذاكرة فوراً
+      state.messages = state.messages.filter((m) => m.id !== target.id);
+      renderedNodes.delete(target.id);
+      const node = el.messages.querySelector('[data-id="' + target.id + '"]');
+      if (node) node.remove();
+    });
+  });
+
+  el.msgMenuDeleteAll.addEventListener('click', () => {
+    if (!state.msgMenuTarget) return;
+    const target = state.msgMenuTarget;
+    el.msgMenu.hidden = true;
+    showConfirm('حذف الرسالة دي للجميع؟\nالطرف التاني هيشوف إنها اتحذفت.', async () => {
+      const chat = state.chats.get(state.activeId);
+      if (!chat || !db) return;
+      try {
+        // بمسح محتوى الرسالة من Firebase (مش الـ node نفسه، عشان نقدر نعرض "اتحذفت")
+        await db.ref(Paths.messages(chat.convId) + '/' + target.id).update({
+          text: '', mediaUrl: null, type: 'text', deletedAt: stamp(),
+        });
+        toast('اتحذفت للجميع ✓');
+      } catch (err) {
+        toast('الحذف ما نفعش — حاول تاني', 'error');
+      }
+    });
+  });
+
+  // ============================================================
+  // 3) مودال التأكيد (confirm)
+  // ============================================================
+  function showConfirm(message, onOk) {
+    el.confirmMessage.textContent = message;
+    el.confirmModal.hidden = false;
+    state.confirmCallback = onOk;
+  }
+
+  el.confirmCancel.addEventListener('click', () => {
+    el.confirmModal.hidden = true;
+    state.confirmCallback = null;
+  });
+
+  el.confirmOk.addEventListener('click', () => {
+    el.confirmModal.hidden = true;
+    const cb = state.confirmCallback;
+    state.confirmCallback = null;
+    if (typeof cb === 'function') cb();
+  });
+
+  // ============================================================
+  // 4) القائمة الهامبرغر (3 شرط) — حسابي، إعدادات، خروج
+  // ============================================================
+  el.menuBtn.addEventListener('click', () => {
+    el.menuModal.hidden = false;
+  });
+
+  el.menuProfile.addEventListener('click', () => {
+    el.menuModal.hidden = true;
+    openMyProfile();
+  });
+
+  el.menuSettings.addEventListener('click', () => {
+    el.menuModal.hidden = true;
+    openSettings();
+  });
+
+  el.menuLogout.addEventListener('click', () => {
+    el.menuModal.hidden = true;
+    showConfirm('متأكد إنك عايز تسجّل خروج؟\nهيتمسح كاش الرسايل من على الجهاز ده.', doLogout);
+  });
+
+  function openMyProfile() {
+    if (!state.me) return;
+    el.profileName.textContent = state.me.name || '—';
+    el.profilePhone.textContent = Phone.formatPhoneForDisplay(state.me.phone || '');
+    el.profileStatus.textContent = state.me.status_text || '';
+    el.profileAvatar.textContent = Fmt.initials(state.me.name);
+    el.profileBody.innerHTML = '';
+    addProfileRow('الهاتف', Phone.formatPhoneForDisplay(state.me.phone || ''));
+    if (state.me.is_verified) addProfileRow('الحساب', 'موثّق ✓');
+    addProfileRow('تاريخ التسجيل', Fmt.formatDate(state.me.created_at) || '—');
+    el.profileBlock.hidden = true;
+    el.profileModal.hidden = false;
+  }
+
+  function addProfileRow(label, value) {
+    const row = document.createElement('div');
+    row.className = 'profile-row';
+    const ic = document.createElement('span');
+    ic.className = 'profile-row-ic';
+    ic.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>';
+    const main = document.createElement('div');
+    main.className = 'profile-row-main';
+    const span = document.createElement('span');
+    span.textContent = label;
+    const strong = document.createElement('strong');
+    strong.textContent = value;
+    main.appendChild(span);
+    main.appendChild(strong);
+    row.appendChild(ic);
+    row.appendChild(main);
+    el.profileBody.appendChild(row);
+  }
+
+  // ============================================================
+  // 5) الإعدادات (تغيير الاسم والحالة والرقم)
+  // ============================================================
+  function openSettings() {
+    if (!state.me) return;
+    el.settingsName.value = state.me.name || '';
+    el.settingsStatus.value = state.me.status_text || '';
+    el.settingsError.textContent = '';
+    el.settingsModal.hidden = false;
+  }
+
+  el.settingsForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    el.settingsError.textContent = '';
+    const name = el.settingsName.value.trim();
+    const status_text = el.settingsStatus.value.trim();
+    if (name.length < 2) { el.settingsError.textContent = 'الاسم لازم يكون حرفين على الأقل'; return; }
+    el.settingsSaveBtn.disabled = true;
+    try {
+      const data = await api('/api/users/update-profile', {
+        method: 'POST',
+        body: { name, status_text },
+      });
+      // بنحدّث state.me + الـ header
+      Object.assign(state.me, data.user);
+      paintMe();
+      el.settingsModal.hidden = true;
+      toast('اتحفظ ✓');
+    } catch (err) {
+      el.settingsError.textContent = err.message || 'حصل خطأ، حاول تاني';
+    } finally {
+      el.settingsSaveBtn.disabled = false;
+    }
+  });
+
+  el.settingsChangePhone.addEventListener('click', () => {
+    el.settingsModal.hidden = true;
+    el.changePhoneModal.hidden = false;
+    el.newPhone.value = '';
+    el.phonePassword.value = '';
+    el.changePhoneError.textContent = '';
+  });
+
+  el.changePhoneForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    el.changePhoneError.textContent = '';
+    const new_phone = el.newPhone.value.trim();
+    const password = el.phonePassword.value;
+    if (!new_phone || !password) { el.changePhoneError.textContent = 'الرقم وكلمة السر مطلوبين'; return; }
+    el.changePhoneBtn.disabled = true;
+    try {
+      const data = await api('/api/users/change-phone', {
+        method: 'POST',
+        body: { new_phone, password },
+      });
+      Object.assign(state.me, data.user);
+      paintMe();
+      el.changePhoneModal.hidden = true;
+      toast('الرقم اتغير ✓');
+    } catch (err) {
+      el.changePhoneError.textContent = err.message || 'حصل خطأ';
+    } finally {
+      el.changePhoneBtn.disabled = false;
+    }
+  });
+
+  // ============================================================
+  // 6) صفحة تفاصيل الشخص — لما تضغط على الـ chat header
+  // ============================================================
+  function openOtherProfile() {
+    const chat = state.chats.get(state.activeId);
+    if (!chat) return;
+
+    // بناء البروفايل من البيانات الموجودة فوراً
+    el.profileName.textContent = chat.otherName || '—';
+    el.profilePhone.textContent = Phone.formatPhoneForDisplay(chat.otherPhone || '');
+    el.profileStatus.textContent = chat.status_text || '';
+    el.profileAvatar.textContent = Fmt.initials(chat.otherName);
+    el.profileBody.innerHTML = '';
+    addProfileRow('الهاتف', Phone.formatPhoneForDisplay(chat.otherPhone || ''));
+    if (chat.isVerified) addProfileRow('الحساب', 'موثّق ✓');
+    if (chat.isOfficial) addProfileRow('نوع الحساب', 'حساب رسمي');
+
+    // زرار حظر
+    const isBlocked = state.blockedIds.has(chat.id);
+    el.profileBlock.classList.toggle('is-blocked', isBlocked);
+    el.profileBlockLabel.textContent = isBlocked ? 'إلغاء الحظر' : 'حظر';
+    el.profileBlock.style.display = 'flex';
+    el.profileModal.hidden = false;
+  }
+
+  el.chatHeadInfo.addEventListener('click', () => {
+    if (state.activeId) openOtherProfile();
+  });
+
+  el.profileBlock.addEventListener('click', () => {
+    const chat = state.chats.get(state.activeId);
+    if (!chat) return;
+    const isBlocked = state.blockedIds.has(chat.id);
+    showConfirm(
+      isBlocked ? 'إلغاء حظر ' + chat.otherName + '؟' : 'حظر ' + chat.otherName + '؟\nمش هتقدر تتبادلوا رسايل.',
+      () => {
+        if (isBlocked) state.blockedIds.delete(chat.id);
+        else state.blockedIds.add(chat.id);
+        el.profileModal.hidden = true;
+        toast(isBlocked ? 'اترفع الحظر ✓' : 'اتحظر ✓');
+      }
+    );
+  });
 
   // ============================================================
   // البداية

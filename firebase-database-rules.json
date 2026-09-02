@@ -30,7 +30,7 @@
           ".indexOn": ["ts"],
           "$messageId": {
             ".write": "auth != null && $convId.matches(/^[0-9]+_[0-9]+$/) && ($convId.beginsWith(auth.uid + '_') || $convId.endsWith('_' + auth.uid)) && (!data.exists() || !newData.exists())",
-            ".validate": "newData.hasChildren(['senderId', 'text', 'ts']) && newData.child('senderId').val() === auth.uid",
+            ".validate": "(!data.exists() && newData.hasChildren(['senderId', 'text', 'ts']) && newData.child('senderId').val() === auth.uid) || (data.exists() && !newData.exists() && data.child('senderId').val() === auth.uid)",
             "senderId": {
               ".validate": "newData.isString() && newData.val().length <= 64"
             },
@@ -48,6 +48,9 @@
             },
             "mediaUrl": {
               ".validate": "newData.isString() && newData.val().length <= 500000"
+            },
+            "replyTo": {
+              ".validate": "newData.isString() && newData.val().length <= 64"
             },
             "$other": { ".validate": false }
           }

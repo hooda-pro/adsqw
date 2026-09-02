@@ -1246,3 +1246,484 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (min-width: 1400px) {
   .msg { max-width: 620px; }
 }
+
+/* ==========================================================
+   17) شريط الرد فوق خانة الكتابة
+   ========================================================== */
+.reply-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 10px var(--sp-4);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  border-inline-start: 3px solid var(--accent);
+  animation: replyIn .2s ease;
+}
+
+@keyframes replyIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.reply-bar-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.reply-bar-main strong {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--accent-2);
+}
+
+.reply-bar-main span {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================
+   18) رسالة فيها رد: مقتطف من الرسالة اللي بترد عليها
+   ========================================================== */
+.msg-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  background: rgba(0, 0, 0, .12);
+  border-radius: 8px;
+  border-inline-start: 3px solid var(--accent);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.msg.is-theirs .msg-reply {
+  background: rgba(255, 255, 255, .06);
+  border-inline-start-color: var(--text-dim);
+}
+
+.msg-reply strong {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--accent-2);
+  margin-bottom: 2px;
+}
+
+.msg.is-theirs .msg-reply strong { color: var(--text-dim); }
+
+.msg-reply span {
+  display: block;
+  color: rgba(255, 255, 255, .8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.msg.is-theirs .msg-reply span { color: var(--text); }
+
+/* ==========================================================
+   19) قائمة الرسالة (Context menu) — زي واتساب
+   ========================================================== */
+.msg-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 180px;
+  padding: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: menuIn .15s ease;
+}
+
+@keyframes menuIn {
+  from { opacity: 0; transform: scale(.95); }
+  to { opacity: 1; transform: none; }
+}
+
+.msg-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 10px var(--sp-3);
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: right;
+  cursor: pointer;
+  transition: background .12s ease;
+}
+
+.msg-menu-item svg {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.msg-menu-item:hover { background: var(--surface-3); }
+
+.msg-menu-item.msg-menu-danger { color: var(--danger); }
+.msg-menu-item.msg-menu-danger:hover { background: rgba(255, 84, 112, .14); }
+
+/* ==========================================================
+   20) قائمة الهامبرغر (3 شرط)
+   ========================================================== */
+.menu-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  margin-bottom: max(20px, env(safe-area-inset-bottom));
+  padding: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 12px var(--sp-3);
+  background: none;
+  border: 0;
+  border-radius: var(--r-md);
+  color: var(--text);
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  transition: background .12s ease;
+}
+
+.menu-item:hover { background: var(--surface-3); }
+
+.menu-item-ic {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--accent);
+  flex: 0 0 40px;
+}
+
+.menu-item-ic svg { width: 20px; height: 20px; }
+
+.menu-item-danger .menu-item-ic { color: var(--danger); background: rgba(255, 84, 112, .14); }
+
+.menu-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.menu-item-text strong {
+  font-size: var(--fs-base);
+  font-weight: 700;
+}
+
+.menu-item-text span {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+.menu-item-danger .menu-item-text strong { color: var(--danger); }
+
+/* ==========================================================
+   21) مودال البروفايل (تفاصيل الشخص)
+   ========================================================== */
+.profile-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  max-height: 90dvh;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-close {
+  position: absolute;
+  top: 12px;
+  inset-inline-start: 12px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(0, 0, 0, .35);
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.profile-close:hover { background: rgba(0, 0, 0, .55); }
+
+.profile-close svg { width: 18px; height: 18px; }
+
+.profile-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 36px var(--sp-5) var(--sp-5);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: #fff;
+}
+
+.profile-avatar {
+  width: 110px;
+  height: 110px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .2);
+  color: #fff;
+  font-size: 38px;
+  font-weight: 800;
+  margin-bottom: var(--sp-3);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, .15);
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.profile-name {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: 800;
+}
+
+.profile-phone {
+  margin: 0;
+  font-size: var(--fs-sm);
+  opacity: .85;
+}
+
+.profile-status {
+  margin: 4px 0 0;
+  font-size: var(--fs-sm);
+  opacity: .9;
+  text-align: center;
+  max-width: 100%;
+}
+
+.profile-body {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.profile-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 10px var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.profile-row-ic {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--accent);
+  flex: 0 0 36px;
+}
+
+.profile-row-ic svg { width: 18px; height: 18px; }
+
+.profile-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-row-main span {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+.profile-row-main strong {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-foot {
+  padding: var(--sp-3) var(--sp-5) calc(var(--sp-5) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+}
+
+.profile-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 84, 112, .14);
+  border: 0;
+  border-radius: var(--r-md);
+  color: var(--danger);
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.profile-action:hover { background: rgba(255, 84, 112, .22); }
+.profile-action svg { width: 18px; height: 18px; }
+
+.profile-action.is-blocked {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+/* ==========================================================
+   22) مودال التأكيد (confirm)
+   ========================================================== */
+.sheet-sm { max-width: 380px; border-radius: 22px; }
+.sheet-sm .sheet-grip { display: none; }
+
+.confirm-msg {
+  margin: 0 0 var(--sp-5);
+  color: var(--text);
+  font-size: var(--fs-md);
+  line-height: 1.6;
+  text-align: center;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: var(--sp-3);
+  flex-direction: row-reverse;
+}
+
+.confirm-actions .btn { flex: 1; padding: 11px var(--sp-4); }
+
+.btn-ghost {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.btn-ghost:hover { background: var(--border); }
+
+.btn-danger { background: var(--danger); }
+.btn-danger:hover { background: #ff7a8e; }
+
+/* ==========================================================
+   23) صفحة الإعدادات (settings)
+   ========================================================== */
+.avatar-edit {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--sp-5);
+}
+
+.avatar-edit .avatar {
+  width: 88px;
+  height: 88px;
+  font-size: 30px;
+  cursor: pointer;
+  outline: 2px solid var(--border);
+  outline-offset: 2px;
+  transition: outline-color .15s ease;
+}
+
+.avatar-edit .avatar:hover { outline-color: var(--accent); }
+
+/* ==========================================================
+   24) معلومات الشات قابلة للنقر
+   ========================================================== */
+.chat-head-info {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background .12s ease;
+}
+
+.chat-head-info:hover { background: var(--surface-3); }
+.chat-head-info:active { background: var(--border); }
+
+/* ==========================================================
+   25) شريط الكتابة: ضبط المسافة أسفل الـ reply bar
+   ========================================================== */
+.chat { display: flex; flex-direction: column; }
+.chat > .messages { flex: 1; min-height: 0; }
+.chat > .composer { flex: 0 0 auto; }
+.chat > .reply-bar { flex: 0 0 auto; }
+
+/* ==========================================================
+   26) رسالة محذوفة للجميع
+   ========================================================== */
+.msg.is-deleted {
+  background: transparent !important;
+  border: 1px dashed var(--border);
+  font-style: italic;
+  color: var(--text-faint);
+  padding: 6px 12px;
+}
+
+.msg-deleted {
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* ==========================================================
+   27) ضبط البروفايل لما يكون داكن
+   ========================================================== */
+.profile-sheet {
+  color: var(--text);
+}

@@ -65,7 +65,11 @@
 }
 
 /* ---------- 2) الأساسيات ---------- */
-*, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after {
+  box-sizing: border-box;
+  /* افتراضي، العناصر لا تتجاوز العرض المحدد لها */
+  min-width: 0;
+}
 
 html, body {
   margin: 0;
@@ -83,7 +87,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-button, input, textarea { font-family: inherit; }
+button, input, textarea { font-family: inherit; max-width: 100%; }
 a { color: inherit; }
 input[type="search"] { appearance: none; -webkit-appearance: none; }
 ::-webkit-search-cancel-button { -webkit-appearance: none; }
@@ -94,6 +98,7 @@ svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
+  flex-shrink: 0;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -349,11 +354,16 @@ body[data-view="app"] #appView { display: block; }
 }
 
 /* ---------- 6) الهيكل العام ---------- */
-.app { height: 100dvh; }
+.app {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
 
 .layout {
   position: relative;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -363,6 +373,8 @@ body[data-view="app"] #appView { display: block; }
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: var(--surface);
 }
 
@@ -652,6 +664,8 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
   color: var(--text-faint);
   text-align: center;
   padding: var(--sp-5);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .pane-idle p { margin: 0; font-size: var(--fs-sm); }
@@ -1166,26 +1180,36 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
     border-radius: 0;
     box-shadow: none;
     border: 0;
+    overflow: hidden;
   }
 
   .layout {
     display: grid;
     grid-template-columns: var(--side-w) minmax(0, 1fr);
+    grid-template-rows: 100%;
     height: 100%;
+    min-height: 0;
     overflow: hidden;
   }
 
   /* إلغاء position:absolute من القاعدة العامة، وخليها عناصر grid عادية */
-  .sidebar, .pane {
+  #sidebar, #pane, .sidebar, .pane {
     position: relative !important;
     inset: auto !important;
     transform: none !important;
     transition: none !important;
     z-index: auto !important;
+    width: auto;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
   }
 
   .sidebar { border-inline-end: 1px solid var(--border); }
-  .pane { background: var(--bg-2); }
+  .pane {
+    background: var(--bg-2);
+    overflow: hidden;
+  }
 
   /* على الكمبيوتر، الـ pane-idle يظهر لما مفيش شات مفتوح (data-pane="list") */
   body[data-pane="list"] .pane-idle { display: flex; }
@@ -1193,6 +1217,12 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 
   /* لما شات مفتوح، نظهر الشات ونخفي الـ idle */
   body[data-pane="chat"] #chatView { display: flex !important; }
+
+  /* ضمان إن الـ chat ياخد ارتفاعه كامل من الـ pane */
+  .chat {
+    height: 100%;
+    min-height: 0;
+  }
 
   .back-btn { display: none; }
 

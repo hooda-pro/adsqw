@@ -1894,45 +1894,45 @@ button.avatar:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 }
 
 /* ==========================================================
-   26) زر الرجوع — دايرة زجاجية صغيرة ثابتة (موبايل فقط)
+   30) زرار الرجوع في الشات — دايرة زجاجية صغيرة وثابتة
+   (موبايل فقط — على الكمبيوتر الزرار مخفي أصلًا)
    ========================================================== */
 @media (max-width: 899px) {
   .chat { position: relative; }
 
-  /* مساحة في الهيدر عشان الزر العايم ما يغطيش على الاسم */
-  .chat-head { padding-inline-start: 56px; }
-
-  .back-btn {
-    position: absolute;
-    z-index: 20;
-    top: calc((var(--head-h) - 34px) / 2);
-    inset-inline-start: 12px;
-    width: 34px;
-    height: 34px;
-    flex: none;
+  /* الهيدر ثابت فوق والرسايل بتتسكرول جواها، فالزرار بيفضل مع الشاشة */
+  .chat-head .back-btn {
+    position: relative;
+    z-index: 5;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
     padding: 0;
     border-radius: 50%;
     color: var(--text);
-    background: rgba(255, 255, 255, .10);
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .06));
+    border: 1px solid rgba(255, 255, 255, .22);
     -webkit-backdrop-filter: blur(14px) saturate(160%);
     backdrop-filter: blur(14px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, .18);
     box-shadow:
-      0 4px 14px rgba(0, 0, 0, .35),
-      inset 0 1px 0 rgba(255, 255, 255, .22);
-    transition: transform .15s ease, background .15s ease;
+      0 4px 14px -4px rgba(0, 0, 0, .55),
+      inset 0 1px 0 rgba(255, 255, 255, .35),
+      inset 0 -1px 0 rgba(255, 255, 255, .06);
+    transition: transform .15s ease, background .15s ease, border-color .15s ease;
   }
 
-  .back-btn:hover { background: rgba(255, 255, 255, .16); color: var(--text); }
-  .back-btn:active { transform: scale(.9); background: rgba(255, 255, 255, .22); }
-
-  .back-btn svg {
+  .chat-head .back-btn svg {
     width: 16px;
     height: 16px;
-    fill: none;
-    stroke: currentColor;
     stroke-width: 2.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
+
+  .chat-head .back-btn:hover {
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .1));
+    border-color: rgba(255, 255, 255, .32);
+  }
+
+  .chat-head .back-btn:active { transform: scale(.9); }
 }

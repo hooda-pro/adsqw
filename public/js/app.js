@@ -67,6 +67,11 @@
     settingsForm: $('settingsForm'),
     settingsName: $('settingsName'),
     settingsStatus: $('settingsStatus'),
+    settingsBio: $('settingsBio'),
+    settingsAge: $('settingsAge'),
+    settingsCity: $('settingsCity'),
+    settingsAvatarInput: $('settingsAvatarInput'),
+    settingsAvatarRemove: $('settingsAvatarRemove'),
     settingsError: $('settingsError'),
     settingsSaveBtn: $('settingsSaveBtn'),
     settingsChangePhone: $('settingsChangePhone'),
@@ -84,6 +89,7 @@
     profileName: $('profileName'),
     profilePhone: $('profilePhone'),
     profileStatus: $('profileStatus'),
+    profileBio: $('profileBio'),
     profileBody: $('profileBody'),
     profileBlock: $('profileBlock'),
     profileBlockLabel: $('profileBlockLabel'),
@@ -187,6 +193,21 @@
       throw Object.assign(new Error(data.error || 'حصل خطأ، حاول تاني'), { status: res.status, data });
     }
     return data;
+  }
+
+  /** بترسم صورة الشخص جوه الدايرة لو موجودة، وإلا الحرف الأول من اسمه.
+   * الصورة بتتحط بـ .src (مش innerHTML) عشان أي نص جاي من مستخدم تاني يفضل نص عادي. */
+  function paintAvatar(node, url, name) {
+    node.textContent = '';
+    if (typeof url === 'string' && /^data:image\/jpeg;base64,/.test(url)) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.src = url;
+      img.addEventListener('error', () => { node.textContent = Fmt.initials(name); });
+      node.appendChild(img);
+    } else {
+      node.textContent = Fmt.initials(name);
+    }
   }
 
   function setPane(name) {
@@ -351,6 +372,9 @@
       is_verified: user.is_verified,
       is_official: user.is_official,
       avatar_url: user.avatar_url,
+      bio: user.bio || '',
+      age: user.age == null ? null : user.age,
+      city: user.city || '',
     }).catch(() => {});
 
     const cachedChats = await Store.getChats();
@@ -413,7 +437,7 @@
   function paintMe() {
     el.meName.textContent = state.me.official_display_name || state.me.name || 'أنا';
     el.mePhone.textContent = Phone.formatPhoneForDisplay(state.me.phone || '');
-    el.meAvatar.textContent = Fmt.initials(state.me.name);
+    paintAvatar(el.meAvatar, state.me.avatar_url, state.me.name);
   }
 
   // الضغط على الأفاتار بتاعي يفتح بروفايلي
@@ -1722,13 +1746,30 @@
     el.profileName.textContent = state.me.name || '—';
     el.profilePhone.textContent = Phone.formatPhoneForDisplay(state.me.phone || '');
     el.profileStatus.textContent = state.me.status_text || '';
-    el.profileAvatar.textContent = Fmt.initials(state.me.name);
+    paintAvatar(el.profileAvatar, state.me.avatar_url, state.me.name);
+    paintProfileDetails(state.me.bio, state.me.age, state.me.city);
     el.profileBody.innerHTML = '';
     addProfileRow('الهاتف', Phone.formatPhoneForDisplay(state.me.phone || ''));
+    appendAboutRows(state.me.age, state.me.city);
     if (state.me.is_verified) addProfileRow('الحساب', 'موثّق ✓');
     addProfileRow('تاريخ التسجيل', Fmt.formatDate(state.me.created_at) || '—');
     el.profileBlock.hidden = true;
     el.profileModal.hidden = false;
+  }
+
+  /** التعريف (bio) تحت الاسم والحالة — يتخفي لو فاضي */
+  function paintProfileDetails(bio) {
+    const text = String(bio || '').trim();
+    el.profileBio.textContent = text;
+    el.profileBio.hidden = !text;
+  }
+
+  /** السن والمدينة كصفوف في تفاصيل الشخص — بتتضاف بس لو متسجّلة */
+  function appendAboutRows(age, city) {
+    const n = Number(age);
+    if (Number.isInteger(n) && n > 0) addProfileRow('السن', n + ' سنة');
+    const c = String(city || '').trim();
+    if (c) addProfileRow('المدينة', c);
   }
 
   function addProfileRow(label, value) {
@@ -1758,12 +1799,53 @@
     el.settingsName.value = state.me.name || '';
     el.settingsStatus.value = state.me.status_text || '';
     el.settingsError.textContent = '';
-    el.settingsAvatar.textContent = Fmt.initials(state.me.name);
+    el.settingsBio.value = state.me.bio || '';
+    el.settingsAge.value = state.me.age == null ? '' : String(state.me.age);
+    el.settingsCity.value = state.me.city || '';
+    pendingAvatar = undefined;
+    paintSettingsAvatar();
     const phoneDisplay = Phone.formatPhoneForDisplay(state.me.phone || '');
     el.settingsPhonePreview.textContent = phoneDisplay;
     el.settingsPhoneRow.textContent = phoneDisplay;
     el.settingsView.hidden = false;
   }
+
+  // undefined = ماتغيّرتش | null = اتمسحت | 'data:...' = صورة جديدة لسه ما اتحفظتش
+  let pendingAvatar;
+
+  function currentAvatarUrl() {
+    return pendingAvatar !== undefined ? pendingAvatar : (state.me && state.me.avatar_url) || null;
+  }
+
+  function paintSettingsAvatar() {
+    const url = currentAvatarUrl();
+    paintAvatar(el.settingsAvatar, url, state.me && state.me.name);
+    el.settingsAvatarRemove.hidden = !url;
+  }
+
+  el.settingsAvatar.addEventListener('click', () => {
+    el.settingsAvatarInput.value = '';
+    el.settingsAvatarInput.click();
+  });
+
+  el.settingsAvatarInput.addEventListener('change', async () => {
+    const file = el.settingsAvatarInput.files && el.settingsAvatarInput.files[0];
+    if (!file) return;
+    el.settingsError.textContent = '';
+    if (!/^image\//.test(file.type)) { el.settingsError.textContent = 'اختار صورة بس'; return; }
+    try {
+      // 256px كفاية جدًا لدايرة الصورة، وبتطلع حوالي 15-25KB
+      pendingAvatar = await compressImageToDataUrl(file, 256, 0.8);
+      paintSettingsAvatar();
+    } catch (err) {
+      el.settingsError.textContent = err.message || 'مش قادر أفتح الصورة دي';
+    }
+  });
+
+  el.settingsAvatarRemove.addEventListener('click', () => {
+    pendingAvatar = null;
+    paintSettingsAvatar();
+  });
 
   function closeSettings() {
     el.settingsView.hidden = true;
@@ -1793,13 +1875,27 @@
     el.settingsError.textContent = '';
     const name = el.settingsName.value.trim();
     const status_text = el.settingsStatus.value.trim();
+    const bio = el.settingsBio.value.trim();
+    const city = el.settingsCity.value.trim();
+    const ageRaw = el.settingsAge.value.trim();
     if (name.length < 2) { el.settingsError.textContent = 'الاسم لازم يكون حرفين على الأقل'; return; }
+    let age = null;
+    if (ageRaw !== '') {
+      age = Number(ageRaw);
+      if (!Number.isInteger(age) || age < 13 || age > 120) {
+        el.settingsError.textContent = 'السن لازم يكون رقم بين 13 و 120';
+        return;
+      }
+    }
+    const body = { name, status_text, bio, city, age };
+    if (pendingAvatar !== undefined) body.avatar_url = pendingAvatar;
     el.settingsSaveBtn.disabled = true;
     try {
       const data = await api('/api/users/update-profile', {
         method: 'POST',
-        body: { name, status_text },
+        body,
       });
+      pendingAvatar = undefined;
       // بنحدّث state.me + الـ header
       Object.assign(state.me, data.user);
       paintMe();
@@ -1863,11 +1959,16 @@
     el.profileName.textContent = chat.otherName || '—';
     el.profilePhone.textContent = Phone.formatPhoneForDisplay(chat.otherPhone || '');
     el.profileStatus.textContent = chat.otherStatusText || '';
-    el.profileAvatar.textContent = Fmt.initials(chat.otherName);
+    paintAvatar(el.profileAvatar, null, chat.otherName);
+    paintProfileDetails('');
     el.profileBody.innerHTML = '';
     addProfileRow('الهاتف', Phone.formatPhoneForDisplay(chat.otherPhone || ''));
     if (chat.isVerified) addProfileRow('الحساب', 'موثّق ✓');
     if (chat.isOfficial) addProfileRow('نوع الحساب', 'حساب رسمي');
+
+    // الصورة والتعريف والسن مش مخزّنين في Firebase (الصورة تقيلة)، فبنجيبهم من
+    // السيرفر بنفس البحث بالرقم الكامل. لو فشل لأي سبب، الصفحة تفضل شغالة بالباقي.
+    loadOtherProfileDetails(chat);
 
     // زرار حظر
     const isBlocked = state.blockedIds.has(chat.id);
@@ -1875,6 +1976,33 @@
     el.profileBlockLabel.textContent = isBlocked ? 'إلغاء الحظر' : 'حظر';
     el.profileBlock.style.display = 'flex';
     el.profileModal.hidden = false;
+  }
+
+  const PROFILE_TTL = 5 * 60 * 1000; // دقايق قبل ما نجيب بيانات نفس الشخص تاني (بيوفّر حد البحث)
+  const profileCache = new Map(); // رقم -> { at, user }
+
+  async function fetchOtherProfile(phone) {
+    const key = Phone.canonicalPhone(phone) || String(phone || '');
+    if (!key) return null;
+    const hit = profileCache.get(key);
+    if (hit && Date.now() - hit.at < PROFILE_TTL) return hit.user;
+    const data = await api('/api/users/search?phone=' + encodeURIComponent(key));
+    const user = (data.users && data.users[0]) || null;
+    profileCache.set(key, { at: Date.now(), user });
+    return user;
+  }
+
+  async function loadOtherProfileDetails(chat) {
+    try {
+      const u = await fetchOtherProfile(chat.otherPhone);
+      // المستخدم ممكن يكون قفل الصفحة أو فتح شخص تاني قبل ما الرد يوصل
+      if (!u || el.profileModal.hidden || state.activeId !== chat.id) return;
+      paintAvatar(el.profileAvatar, u.avatar_url, chat.otherName);
+      paintProfileDetails(u.bio);
+      appendAboutRows(u.age, u.city);
+    } catch (err) {
+      console.warn('profile details unavailable', err && err.message);
+    }
   }
 
   el.chatHeadInfo.addEventListener('click', () => {

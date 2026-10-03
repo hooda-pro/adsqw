@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS users (
   name                  TEXT NOT NULL,                 -- اسم المستخدم الظاهر
   avatar_url            TEXT,                          -- صورة البروفايل
   status_text           TEXT DEFAULT '',               -- الحالة (زي "Available" في واتساب)
+  bio                   TEXT DEFAULT '',               -- تعريف عن الشخص (نبذة)
+  age                   SMALLINT,                      -- السن (اختياري)
+  city                  TEXT DEFAULT '',               -- المدينة/البلد (اختياري)
 
   -- توثيق وحسابات رسمية
   is_verified           BOOLEAN NOT NULL DEFAULT false, -- علامة التوثيق ✔️
@@ -29,6 +32,11 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_seen_at          TIMESTAMPTZ
 );
+
+-- لو الجدول موجود عندك من قبل: الأسطر دي بتضيف الأعمدة الجديدة من غير ما تمس بياناتك
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bio  TEXT DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS age  SMALLINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS city TEXT DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users (phone);
 CREATE INDEX IF NOT EXISTS idx_users_verified ON users (is_verified);

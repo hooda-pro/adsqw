@@ -139,7 +139,7 @@
       <section class="chat" id="chatView" hidden>
         <header class="chat-head">
           <button class="icon-btn back-btn" id="backBtn" type="button" aria-label="رجوع">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
           </button>
           <button type="button" class="chat-head-info" id="chatHeadInfo" aria-label="معلومات الشخص">
             <span class="avatar" id="chatAvatar"></span>
@@ -262,7 +262,14 @@
   </header>
   <div class="settings-body">
     <div class="settings-avatar-wrap">
-      <div class="settings-avatar" id="settingsAvatar"></div>
+      <div class="settings-avatar-holder">
+        <button type="button" class="settings-avatar settings-avatar-btn" id="settingsAvatar" aria-label="تغيير الصورة الشخصية"></button>
+        <span class="settings-avatar-cam" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        </span>
+      </div>
+      <input type="file" id="settingsAvatarInput" accept="image/*" hidden>
+      <button type="button" class="btn-link settings-avatar-remove" id="settingsAvatarRemove" hidden>حذف الصورة</button>
       <p class="settings-avatar-sub" id="settingsPhonePreview" dir="ltr"></p>
     </div>
 
@@ -277,6 +284,20 @@
           <span>الحالة</span>
           <input type="text" id="settingsStatus" maxlength="80" placeholder="مثلاً: متاح للدردشة">
         </label>
+        <label class="field">
+          <span>تعريف عنك</span>
+          <textarea id="settingsBio" rows="3" maxlength="300" placeholder="اكتب نبذة قصيرة عنك"></textarea>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>السن</span>
+            <input type="number" id="settingsAge" inputmode="numeric" min="13" max="120" placeholder="مثلاً: 25">
+          </label>
+          <label class="field">
+            <span>المدينة</span>
+            <input type="text" id="settingsCity" maxlength="40" autocomplete="address-level2" placeholder="مثلاً: الزقازيق">
+          </label>
+        </div>
         <p class="form-error" id="settingsError" role="alert"></p>
         <button type="submit" class="btn btn-primary" id="settingsSaveBtn">حفظ التعديلات</button>
       </form>
@@ -342,6 +363,7 @@
       <h2 class="profile-name" id="profileName">—</h2>
       <p class="profile-phone" id="profilePhone" dir="ltr"></p>
       <p class="profile-status" id="profileStatus"></p>
+      <p class="profile-bio" id="profileBio" hidden></p>
     </header>
     <div class="profile-body" id="profileBody"></div>
     <footer class="profile-foot">

@@ -74,7 +74,7 @@ module.exports = async (req, res) => {
 
     // مقارنة تساوي تام على كل الصيغ اللي ممكن الرقم يكون متخزّن بيها من نسخ قديمة
     const { rows } = await sql`
-      SELECT id, phone, name, avatar_url, status_text, is_verified, is_official, official_display_name
+      SELECT id, phone, name, avatar_url, status_text, bio, age, city, is_verified, is_official, official_display_name
       FROM users
       WHERE phone = ANY(${variants})
         AND banned = false
